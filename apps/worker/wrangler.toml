@@ -1,0 +1,29 @@
+name = "ppm-worker"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ppm-production"
+database_id = "9bbc5321-cad3-41f3-af6d-4950aed63f6f"
+migrations_dir = "src/db/migrations"
+
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "dc5eb2221acc414182a635a5d78cb0e5"
+
+# R2 and Queues enabled in Phase 6 (file attachments, PDF reports)
+# Enable via Cloudflare dashboard then uncomment:
+# [[r2_buckets]]
+# binding = "R2_FILES"
+# bucket_name = "ppm-files"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+ENVIRONMENT = "production"
+JWT_EXPIRY = "86400"
+
+# Set via: wrangler secret put JWT_SECRET

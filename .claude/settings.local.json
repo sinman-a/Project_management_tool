@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Digital_products//**)",
+      "Bash(npm --version)",
+      "Bash(pnpm --version)",
+      "Bash(npx wrangler *)",
+      "Bash(npm list *)",
+      "PowerShell(npm install -g pnpm wrangler 2>&1)",
+      "PowerShell(tail -5)",
+      "PowerShell(npm install -g pnpm wrangler)",
+      "PowerShell(pnpm --version)",
+      "PowerShell(wrangler --version)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\artem\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Digital-products-Project-management-tool\\\\4760dd21-79fb-4674-b14b-5963f129f9cf\\\\tasks\\\\bbppk5i2h.output\" -Wait -Tail 20)",
+      "Read(//c/Users/artem/AppData/Local/Temp/claude/d--Digital-products-Project-management-tool/4760dd21-79fb-4674-b14b-5963f129f9cf/tasks/**)",
+      "Bash(wrangler d1 *)",
+      "Bash(wrangler kv *)",
+      "Bash(wrangler r2 *)",
+      "Bash(openssl rand *)",
+      "Bash(echo \"ppm-secret-$\\(openssl rand -hex 32\\)\")",
+      "Bash(wrangler secret *)",
+      "Bash(npx tsc *)",
+      "Bash(wrangler deploy *)",
+      "Bash(curl -s \"https://ppm-worker.almazor-schwab.workers.dev/api/health\")",
+      "Bash(pnpm build *)",
+      "Bash(wrangler pages *)",
+      "Bash(curl -s \"https://ppm-worker.almazor-schwab.workers.dev/api/auth/setup/status\")",
+      "Bash(curl -s -I -X OPTIONS \"https://ppm-worker.almazor-schwab.workers.dev/api/auth/setup\" -H \"Origin: https://ppm-tool.pages.dev\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\")",
+      "Bash(pnpm --filter web typecheck)",
+      "Bash(pnpm --filter web build)",
+      "Bash(pnpm --filter worker typecheck)"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+name: Deploy Worker to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/worker/**'
+      - 'packages/**'
+
+jobs:
+  deploy:
+    name: Deploy Worker + Run Migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type check worker
+        run: pnpm --filter worker typecheck
+
+      - name: Run D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: d1 migrations apply ppm-production
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: deploy
+          secrets: |
+            JWT_SECRET
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}

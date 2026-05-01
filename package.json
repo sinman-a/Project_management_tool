@@ -1,0 +1,18 @@
+{
+  "name": "ppm-tool",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "db:migrate:local": "pnpm --filter worker exec wrangler d1 migrations apply ppm-dev --local",
+    "db:migrate:prod": "pnpm --filter worker exec wrangler d1 migrations apply ppm-production",
+    "db:seed": "pnpm --filter worker exec tsx scripts/seed-dev.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}
