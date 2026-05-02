@@ -18,6 +18,7 @@ import { ProjectDetail } from '@/pages/ProjectDetail'
 import { Resources } from '@/pages/Resources'
 import { Timesheet } from '@/pages/Timesheet'
 import { Reports } from '@/pages/Reports'
+import { Landing } from '@/pages/Landing'
 
 function OrgCurrencyLoader() {
   const { data: org } = useOrgSettings()
@@ -56,9 +57,8 @@ function RootRedirect() {
   const { user, isLoading: authLoading } = useAuth()
 
   if (setupLoading || authLoading) return <Spinner />
-
   if (setupStatus?.needsSetup) return <Navigate to="/setup" replace />
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Landing />
   return <Navigate to="/dashboard" replace />
 }
 
