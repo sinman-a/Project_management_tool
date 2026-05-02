@@ -91,7 +91,7 @@ taskRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
 
   const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
-    .bind(id).first<{ assigned_to: string | null }>()
+    .bind(id).first<{ assigned_to: string | null; project_id: string }>()
   if (!task) return c.json({ message: 'Not found' }, 404)
 
   if (user.role === 'team_member' && task.assigned_to !== user.sub) {
@@ -100,10 +100,11 @@ taskRoutes.patch('/:id', async (c) => {
 
   const body = await c.req.json()
   const allAllowed = ['name', 'description', 'status', 'priority', 'assigned_to', 'story_points',
-    'estimated_hours', 'start_date', 'due_date', 'cost_type', 'wbs_code', 'sprint_id', 'parent_task_id']
+    'estimated_hours', 'start_date', 'due_date', 'cost_type', 'wbs_code', 'sprint_id',
+    'parent_task_id', 'project_id']
   const tmAllowed = ['status']
 
-  const updates = Object.entries(body)
+  const updates: [string, unknown][] = Object.entries(body)
     .filter(([k]) => {
       const snake = toSnake(k)
       return user.role === 'team_member' ? tmAllowed.includes(snake) : allAllowed.includes(snake)
@@ -111,6 +112,13 @@ taskRoutes.patch('/:id', async (c) => {
     .map(([k, v]) => [toSnake(k), v])
 
   if (updates.length === 0) return c.json({ message: 'No valid fields' }, 400)
+
+  // When moving to a different project, clear sprint and parent (they belong to the old project)
+  const newProjectId = updates.find(([k]) => k === 'project_id')?.[1]
+  if (newProjectId && newProjectId !== task.project_id) {
+    if (!updates.find(([k]) => k === 'sprint_id')) updates.push(['sprint_id', null])
+    if (!updates.find(([k]) => k === 'parent_task_id')) updates.push(['parent_task_id', null])
+  }
 
   const setClauses = [...updates.map(([k]) => `${k} = ?`), 'updated_at = CURRENT_TIMESTAMP'].join(', ')
   await c.env.DB.prepare(`UPDATE tasks SET ${setClauses} WHERE id = ?`)

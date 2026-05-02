@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { useUsers } from '@/hooks/useUsers'
 import { useSprints } from '@/hooks/useSprints'
+import { useProjects } from '@/hooks/useProjects'
 import type { Task } from '@/types'
 
 const schema = z.object({
@@ -20,6 +21,7 @@ const schema = z.object({
   assignedTo: z.string().optional(),
   sprintId: z.string().optional(),
   wbsCode: z.string().optional(),
+  targetProjectId: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -36,6 +38,7 @@ interface Props {
 export function TaskForm({ projectId, task, parentTaskId, isPending, onCancel, onSubmit }: Props) {
   const { data: users = [] } = useUsers()
   const { data: sprints = [] } = useSprints(projectId)
+  const { data: projects = [] } = useProjects()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -53,24 +56,27 @@ export function TaskForm({ projectId, task, parentTaskId, isPending, onCancel, o
       assignedTo: task?.assignedTo ?? '',
       sprintId: task?.sprintId ?? '',
       wbsCode: task?.wbsCode ?? '',
+      targetProjectId: projectId,
     },
   })
 
   return (
     <form
-      onSubmit={handleSubmit((data) =>
+      onSubmit={handleSubmit((data) => {
+        const finalProjectId = data.targetProjectId || projectId
+        const isMoving = finalProjectId !== projectId
         onSubmit({
           ...data,
-          projectId,
-          parentTaskId: parentTaskId ?? task?.parentTaskId ?? undefined,
+          projectId: finalProjectId,
+          parentTaskId: isMoving ? undefined : (parentTaskId ?? task?.parentTaskId ?? undefined),
           assignedTo: data.assignedTo || undefined,
-          sprintId: data.sprintId || undefined,
+          sprintId: isMoving ? undefined : (data.sprintId || undefined),
           startDate: data.startDate || undefined,
           dueDate: data.dueDate || undefined,
           wbsCode: data.wbsCode || undefined,
           storyPoints: data.storyPoints || undefined,
-        }),
-      )}
+        })
+      })}
       className="space-y-3"
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -171,6 +177,17 @@ export function TaskForm({ projectId, task, parentTaskId, isPending, onCancel, o
           <label className="block text-xs text-muted-foreground mb-1">WBS Code</label>
           <input className="input-field" placeholder="e.g. 1.2.3" {...register('wbsCode')} />
         </div>
+
+        {task && projects.length > 1 && (
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-muted-foreground mb-1">Move to Project</label>
+            <select className="input-field" {...register('targetProjectId')}>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 justify-end pt-1">

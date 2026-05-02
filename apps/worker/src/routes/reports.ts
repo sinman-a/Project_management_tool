@@ -53,7 +53,7 @@ reportRoutes.get('/', async (c) => {
 
   const { results } = await c.env.DB.prepare(`
     SELECT sr.*,
-      u.name as author_name,
+      u.full_name as author_name,
       p.name as project_name,
       pr.name as program_name
     FROM status_reports sr
@@ -71,7 +71,7 @@ reportRoutes.get('/', async (c) => {
 reportRoutes.get('/:id', async (c) => {
   const { id } = c.req.param()
   const row = await c.env.DB.prepare(`
-    SELECT sr.*, u.name as author_name, p.name as project_name, pr.name as program_name
+    SELECT sr.*, u.full_name as author_name, p.name as project_name, pr.name as program_name
     FROM status_reports sr
     LEFT JOIN users u ON u.id = sr.author_id
     LEFT JOIN projects p ON p.id = sr.project_id

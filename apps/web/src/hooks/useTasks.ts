@@ -23,7 +23,7 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, ...data }: Partial<Task> & { id: string }) =>
       api.patch<Task>(`/tasks/${id}`, data),
-    onSuccess: (t) => qc.invalidateQueries({ queryKey: ['tasks', { projectId: t.projectId }] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
