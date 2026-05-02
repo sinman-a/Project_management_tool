@@ -11,6 +11,7 @@ import { sprintRoutes } from './routes/sprints'
 import { resourceRoutes } from './routes/resources'
 import { userRoutes } from './routes/users'
 import { reportRoutes } from './routes/reports'
+import { orgRoutes } from './routes/org'
 import { handleScheduled } from './scheduled/budgetCron'
 
 const app = new Hono<HonoContext>()
@@ -32,6 +33,7 @@ api.route('/time-logs', timeLogRoutes)
 api.route('/resources', resourceRoutes)
 api.route('/users', userRoutes)
 api.route('/reports', reportRoutes)
+api.route('/org', orgRoutes)
 
 app.route('/api', api)
 

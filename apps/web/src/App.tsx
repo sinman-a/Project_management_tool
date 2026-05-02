@@ -1,6 +1,9 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useSetupStatus } from '@/hooks/useUsers'
+import { useOrgSettings } from '@/hooks/useOrg'
+import { setDefaultCurrency } from '@/lib/utils'
 import { TopNav } from '@/components/layout/TopNav'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { HealthBar } from '@/components/layout/HealthBar'
@@ -16,9 +19,20 @@ import { Resources } from '@/pages/Resources'
 import { Timesheet } from '@/pages/Timesheet'
 import { Reports } from '@/pages/Reports'
 
+function OrgCurrencyLoader() {
+  const { data: org } = useOrgSettings()
+  useEffect(() => {
+    if (org?.settings?.currency) {
+      setDefaultCurrency(org.settings.currency)
+    }
+  }, [org?.settings?.currency])
+  return null
+}
+
 function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+      <OrgCurrencyLoader />
       <TopNav />
       <HealthBar />
       <div className="flex flex-1 overflow-hidden">

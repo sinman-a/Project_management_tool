@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Save, AlertCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Save, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useWeekTimeLogs, useCreateTimeLog, useDeleteTimeLog } from '@/hooks/useTimeLogs'
@@ -27,11 +27,13 @@ function toDateStr(d: Date): string {
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 interface Props {
-  assignedTasks: (Task & { projectName?: string })[]
+  tasks: (Task & { projectName?: string })[]
+  pinnedTaskIds: string[]
+  onRemoveTask: (taskId: string) => void
   resource: Resource
 }
 
-export function WeeklyTimesheet({ assignedTasks, resource }: Props) {
+export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }: Props) {
   const [weekMonday, setWeekMonday] = useState<Date>(() => getMonday(new Date()))
   const weekStart = toDateStr(weekMonday)
 
@@ -112,7 +114,7 @@ export function WeeklyTimesheet({ assignedTasks, resource }: Props) {
   const hasPendingEdits = Object.keys(cellEdits).length > 0
 
   const dayTotals = days.map((date) =>
-    assignedTasks.reduce((sum, task) => {
+    tasks.reduce((sum, task) => {
       const val = getCellValue(task.id, date)
       const n = parseFloat(val)
       return sum + (isNaN(n) ? 0 : n)
@@ -175,27 +177,41 @@ export function WeeklyTimesheet({ assignedTasks, resource }: Props) {
             </tr>
           </thead>
           <tbody>
-            {assignedTasks.length === 0 && (
+            {tasks.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center py-10 text-muted-foreground">
-                  No tasks assigned to you. Ask your project manager to assign tasks.
+                  No tasks yet. Assigned tasks appear automatically, or click "Add Task" to add any project task.
                 </td>
               </tr>
             )}
-            {assignedTasks.map((task) => {
+            {tasks.map((task) => {
               const rowTotal = days.reduce((sum, date) => {
                 const val = getCellValue(task.id, date)
                 const n = parseFloat(val)
                 return sum + (isNaN(n) ? 0 : n)
               }, 0)
+              const isPinned = pinnedTaskIds.includes(task.id)
 
               return (
                 <tr key={task.id} className="border-b hover:bg-muted/20">
                   <td className="py-2 px-3">
-                    <div className="font-medium truncate max-w-[200px]">{task.name}</div>
-                    {task.projectName && (
-                      <div className="text-xs text-muted-foreground truncate">{task.projectName}</div>
-                    )}
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate max-w-[180px]">{task.name}</div>
+                        {task.projectName && (
+                          <div className="text-xs text-muted-foreground truncate">{task.projectName}</div>
+                        )}
+                      </div>
+                      {isPinned && (
+                        <button
+                          className="flex-shrink-0 h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive mt-0.5"
+                          onClick={() => onRemoveTask(task.id)}
+                          title="Remove from timesheet"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   {days.map((date, i) => {
                     const key = `${task.id}_${date}`

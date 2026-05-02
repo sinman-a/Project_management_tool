@@ -103,7 +103,7 @@ export function Sidebar() {
         <NavLink to="/programs" icon={FolderOpen} label="Programs" />
         <NavLink to="/projects" icon={FolderKanban} label="All Projects" />
         <NavLink to="/resources" icon={Users} label="Resources" />
-        <NavLink to="/timesheet" icon={Clock} label="My Timesheet" />
+        <NavLink to="/timesheet" icon={Clock} label="Timesheet" />
         <NavLink to="/reports" icon={BarChart3} label="Reports" />
         <NavLink to="/settings" icon={Settings} label="Settings" />
       </div>

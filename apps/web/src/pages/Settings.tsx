@@ -1,12 +1,20 @@
 import { useState } from 'react'
-import { UserPlus, Pencil, ShieldCheck } from 'lucide-react'
+import { UserPlus, Pencil, ShieldCheck, DollarSign } from 'lucide-react'
 import { useUsers, useCreateUser, useUpdateUser } from '@/hooks/useUsers'
+import { useOrgSettings, useUpdateOrgSettings } from '@/hooks/useOrg'
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { User } from '@/types'
+
+const CURRENCIES = [
+  { code: 'USD', label: 'USD — US Dollar', symbol: '$' },
+  { code: 'EUR', label: 'EUR — Euro', symbol: '€' },
+  { code: 'GBP', label: 'GBP — British Pound', symbol: '£' },
+  { code: 'UAH', label: 'UAH — Ukrainian Hryvnia', symbol: '₴' },
+] as const
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline' | 'green' | 'amber'> = {
   admin: 'default',
@@ -26,8 +34,10 @@ export function Settings() {
   const { user: me } = useAuthStore()
   const isAdmin = me?.role === 'admin'
   const { data: users = [], isLoading } = useUsers()
+  const { data: org } = useOrgSettings()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
+  const updateOrgSettings = useUpdateOrgSettings()
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<User | null>(null)
 
@@ -42,6 +52,39 @@ export function Settings() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground text-sm mt-1">Organization and user management</p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            <DollarSign className="inline-block w-4 h-4 mr-2 text-primary" />
+            Display Currency
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isAdmin ? (
+            <p className="text-sm text-muted-foreground">Only admins can change the currency setting.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {CURRENCIES.map((c) => (
+                <Button
+                  key={c.code}
+                  variant={org?.settings?.currency === c.code ? 'default' : 'outline'}
+                  size="sm"
+                  disabled={updateOrgSettings.isPending}
+                  onClick={() => updateOrgSettings.mutate({ currency: c.code })}
+                >
+                  {c.symbol} {c.label}
+                </Button>
+              ))}
+            </div>
+          )}
+          {isAdmin && org?.settings?.currency && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Current: {CURRENCIES.find(c => c.code === org.settings.currency)?.label ?? org.settings.currency}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">

@@ -28,7 +28,8 @@
       "Bash(curl -s -I -X OPTIONS \"https://ppm-worker.almazor-schwab.workers.dev/api/auth/setup\" -H \"Origin: https://ppm-tool.pages.dev\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\")",
       "Bash(pnpm --filter web typecheck)",
       "Bash(pnpm --filter web build)",
-      "Bash(pnpm --filter worker typecheck)"
+      "Bash(pnpm --filter worker typecheck)",
+      "Bash(npm run *)"
     ]
   }
 }

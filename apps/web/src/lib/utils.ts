@@ -5,8 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  EUR: 'de-DE',
+  GBP: 'en-GB',
+  UAH: 'uk-UA',
+}
+
+let _defaultCurrency = 'USD'
+
+export function setDefaultCurrency(currency: string) {
+  _defaultCurrency = currency
+}
+
+export function formatCurrency(amount: number, currency?: string): string {
+  const c = currency ?? _defaultCurrency
+  const locale = CURRENCY_LOCALE[c] ?? 'en-US'
+  return new Intl.NumberFormat(locale, { style: 'currency', currency: c }).format(amount)
 }
 
 export function formatPercent(value: number, decimals = 1): string {
