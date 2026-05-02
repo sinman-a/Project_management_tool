@@ -29,7 +29,8 @@
       "Bash(pnpm --filter web typecheck)",
       "Bash(pnpm --filter web build)",
       "Bash(pnpm --filter worker typecheck)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(gh run *)"
     ]
   }
 }
