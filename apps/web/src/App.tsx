@@ -9,6 +9,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { HealthBar } from '@/components/layout/HealthBar'
 import { Login } from '@/pages/Login'
 import { Setup } from '@/pages/Setup'
+import { Register } from '@/pages/Register'
 import { Dashboard } from '@/pages/Dashboard'
 import { Settings } from '@/pages/Settings'
 import { Programs } from '@/pages/Programs'
@@ -79,6 +80,7 @@ export default function App() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/setup" element={<Setup />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/programs" element={<ProtectedRoute><Programs /></ProtectedRoute>} />

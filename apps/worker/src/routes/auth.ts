@@ -144,11 +144,44 @@ authRoutes.post('/setup', async (c) => {
   return c.json({ id: admin.id, email, fullName, role: 'admin', orgId: admin.org_id })
 })
 
-// Check if setup is needed (public endpoint)
+// Check if setup is needed — true only when NO real (non-placeholder) users exist yet
 authRoutes.get('/setup/status', async (c) => {
-  const admin = await c.env.DB.prepare(
-    "SELECT password_hash FROM users WHERE role = 'admin' LIMIT 1",
-  ).first<{ password_hash: string }>()
+  const row = await c.env.DB.prepare(
+    "SELECT COUNT(*) as cnt FROM users WHERE password_hash != 'CHANGE_ME_BEFORE_DEPLOY' AND is_active = 1",
+  ).first<{ cnt: number }>()
 
-  return c.json({ needsSetup: !admin || admin.password_hash === 'CHANGE_ME_BEFORE_DEPLOY' })
+  return c.json({ needsSetup: !row || row.cnt === 0 })
+})
+
+// Public registration — creates a new independent org + admin account
+authRoutes.post('/register', async (c) => {
+  const body = await c.req.json()
+  const parsed = setupSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
+  }
+
+  const { email, password, fullName, orgName } = parsed.data
+
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
+    .bind(email).first()
+  if (existing) return c.json({ message: 'Email already in use' }, 409)
+
+  const orgId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const passwordHash = await hashPassword(password)
+
+  await c.env.DB.batch([
+    c.env.DB.prepare('INSERT INTO organizations (id, name) VALUES (?, ?)')
+      .bind(orgId, orgName ?? 'My Organization'),
+    c.env.DB.prepare(
+      'INSERT INTO users (id, org_id, email, full_name, role, password_hash, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)',
+    ).bind(userId, orgId, email, fullName, 'admin', passwordHash),
+  ])
+
+  const expiry = parseInt(c.env.JWT_EXPIRY, 10)
+  const token = await issueToken(c.env.JWT_SECRET, c.env.JWT_EXPIRY, userId, email, 'admin', orgId)
+  c.header('Set-Cookie', setCookieHeader(token, expiry, c.env.ENVIRONMENT === 'production'))
+
+  return c.json({ id: userId, email, fullName, role: 'admin', orgId })
 })

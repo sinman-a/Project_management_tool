@@ -41,7 +41,7 @@ function LandingNav() {
             Sign In
           </Link>
           <Link
-            to="/setup"
+            to="/register"
             className="text-sm font-semibold bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
           >
             Get Started
@@ -101,7 +101,7 @@ function HeroSection() {
           style={{ animationDelay: '0.45s' }}
         >
           <Link
-            to="/setup"
+            to="/register"
             className="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold
                        px-8 py-4 rounded-full text-base hover:bg-blue-700
                        transition-colors duration-200 shadow-lg shadow-blue-600/25"
@@ -448,7 +448,7 @@ function CtaStrip() {
           Your data stays in your own Cloudflare account.
         </p>
         <Link
-          to="/setup"
+          to="/register"
           className="inline-flex items-center gap-2 bg-white text-gray-900 font-semibold
                      px-8 py-4 rounded-full text-base hover:bg-gray-100
                      transition-colors duration-200"
