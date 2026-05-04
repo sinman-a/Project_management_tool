@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2 } from 'lucide-react'
-import { useProjects, useCreateProject, useUpdateProject, useDeleteProject } from '@/hooks/useProjects'
+import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2 } from 'lucide-react'
+import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, usePrograms } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { RagDot } from '@/components/layout/RagDot'
@@ -19,6 +19,7 @@ export function Projects() {
   const programId = params.get('programId') ?? undefined
   const { canCreateProjects } = useAuthStore()
   const { data: allProjects = [], isLoading } = useProjects(programId)
+  const { data: programs = [] } = usePrograms()
   const createProject = useCreateProject()
   const updateProject = useUpdateProject()
   const deleteProject = useDeleteProject()
@@ -26,6 +27,8 @@ export function Projects() {
   const [editTarget, setEditTarget] = useState<Project | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [assignTarget, setAssignTarget] = useState<Project | null>(null)
+  const [assignProgramId, setAssignProgramId] = useState('')
 
   const projects = showArchived
     ? allProjects
@@ -44,7 +47,16 @@ export function Projects() {
     deleteProject.mutate(id, { onSuccess: () => setConfirmDeleteId(null) })
   }
 
+  function handleAssignProgram() {
+    if (!assignTarget) return
+    updateProject.mutate(
+      { id: assignTarget.id, programId: assignProgramId || undefined },
+      { onSuccess: () => { setAssignTarget(null); setAssignProgramId('') } },
+    )
+  }
+
   const archivedCount = allProjects.filter((p) => ARCHIVED_STATUSES.includes(p.status)).length
+  const unlinkedCount = allProjects.filter((p) => !p.programId && !ARCHIVED_STATUSES.includes(p.status)).length
 
   return (
     <div className="p-6 space-y-6">
@@ -54,6 +66,9 @@ export function Projects() {
           <p className="text-muted-foreground text-sm mt-1">
             {projects.length} project{projects.length !== 1 ? 's' : ''}
             {programId ? ' in this program' : ' total'}
+            {!programId && unlinkedCount > 0 && (
+              <span className="ml-1">· <span className="text-amber-600">{unlinkedCount} without program</span></span>
+            )}
             {!showArchived && archivedCount > 0 && (
               <span> · <button onClick={() => setShowArchived(true)} className="text-primary hover:underline">{archivedCount} archived</button></span>
             )}
@@ -134,6 +149,42 @@ export function Projects() {
         </div>
       )}
 
+      {/* Assign to program modal */}
+      {assignTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="font-semibold text-base">Assign to Program</h3>
+            <p className="text-sm text-muted-foreground">
+              Select a program for <span className="font-medium text-foreground">"{assignTarget.name}"</span>.
+            </p>
+            <select
+              className="input-field w-full"
+              value={assignProgramId}
+              onChange={(e) => setAssignProgramId(e.target.value)}
+            >
+              <option value="">— No program —</option>
+              {programs
+                .filter((pr) => pr.status !== 'closed')
+                .map((pr) => (
+                  <option key={pr.id} value={pr.id}>{pr.name}</option>
+                ))}
+            </select>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => { setAssignTarget(null); setAssignProgramId('') }}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={updateProject.isPending}
+                onClick={handleAssignProgram}
+              >
+                {updateProject.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="h-40 rounded-lg bg-muted animate-pulse" />)}
@@ -154,6 +205,7 @@ export function Projects() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((project) => {
             const isArchived = ARCHIVED_STATUSES.includes(project.status)
+            const hasNoProgram = !project.programId && !programId
             return (
               <Card
                 key={project.id}
@@ -166,7 +218,12 @@ export function Projects() {
                       <RagDot status={project.ragStatus ?? 'green'} />
                       <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
+                    <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+                      {hasNoProgram && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          No program
+                        </span>
+                      )}
                       <StatusBadge status={project.methodology} />
                       <StatusBadge status={project.status} />
                     </div>
@@ -186,7 +243,21 @@ export function Projects() {
                     CAPEX {formatCurrency(project.budgetCapex)} · OPEX {formatCurrency(project.budgetOpex)}
                   </div>
                   {canCreateProjects() && (
-                    <div className="flex items-center justify-end gap-1 pt-1">
+                    <div className="flex items-center justify-end gap-1 pt-1 flex-wrap">
+                      {hasNoProgram && programs.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-xs px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAssignTarget(project)
+                            setAssignProgramId(project.programId ?? '')
+                          }}
+                        >
+                          <Link2 className="w-3 h-3 mr-1" /> Assign program
+                        </Button>
+                      )}
                       {!isArchived && (
                         <Button
                           size="sm"

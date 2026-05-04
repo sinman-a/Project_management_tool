@@ -48,6 +48,7 @@ export interface Resource {
   orgId: string
   userId: string | null
   name: string
+  email: string | null
   type: ResourceType
   costType: CostType
   rate: number

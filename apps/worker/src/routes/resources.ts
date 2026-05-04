@@ -6,6 +6,7 @@ import { requireAny } from '../middleware/rbac'
 const resourceSchema = z.object({
   userId: z.string().uuid().optional(),
   name: z.string().min(1).max(200),
+  email: z.string().email().max(200).optional(),
   type: z.enum(['human', 'equipment']),
   costType: z.enum(['capex', 'opex']),
   rate: z.number().min(0),
@@ -44,7 +45,7 @@ resourceRoutes.post('/', requireAny('admin'), async (c) => {
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
   const {
-    userId, name, type, costType, rate, currency, capacityHoursPerWeek,
+    userId, name, email, type, costType, rate, currency, capacityHoursPerWeek,
     role, seniorityLevel, superpower, startDate, location,
     projectAllocation, avatarUrl, archetype, motto,
   } = parsed.data
@@ -52,13 +53,13 @@ resourceRoutes.post('/', requireAny('admin'), async (c) => {
 
   await c.env.DB.prepare(`
     INSERT INTO resources (
-      id, org_id, user_id, name, type, cost_type, rate, currency, capacity_hours_per_week,
+      id, org_id, user_id, name, email, type, cost_type, rate, currency, capacity_hours_per_week,
       role, seniority_level, superpower, start_date, location,
       project_allocation, avatar_url, archetype, motto
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
     .bind(
-      id, user.orgId, userId ?? null, name, type, costType, rate, currency, capacityHoursPerWeek,
+      id, user.orgId, userId ?? null, name, email ?? null, type, costType, rate, currency, capacityHoursPerWeek,
       role ?? null, seniorityLevel ?? null, superpower ?? null, startDate ?? null, location ?? null,
       projectAllocation ?? 100, avatarUrl || null, archetype ?? null, motto ?? null,
     )
@@ -79,7 +80,7 @@ resourceRoutes.patch('/:id', requireAny('admin'), async (c) => {
 
   const body = await c.req.json()
   const allowed = [
-    'name', 'type', 'cost_type', 'rate', 'currency', 'capacity_hours_per_week',
+    'name', 'email', 'type', 'cost_type', 'rate', 'currency', 'capacity_hours_per_week',
     'role', 'seniority_level', 'superpower', 'start_date', 'location',
     'project_allocation', 'avatar_url', 'archetype', 'motto',
   ]

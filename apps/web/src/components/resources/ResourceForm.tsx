@@ -10,7 +10,9 @@ const DEFAULT_ROLES = ['Developer', 'Tester', 'Stakeholder', 'Analyst', 'Archite
 const DEFAULT_SENIORITY = ['Junior', 'Middle', 'Senior', 'Tech Lead']
 
 const schema = z.object({
-  name: z.string().min(1, 'Required'),
+  firstName: z.string().min(1, 'Required'),
+  lastName: z.string().optional(),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
   type: z.enum(['human', 'equipment']),
   costType: z.enum(['capex', 'opex']),
   rate: z.coerce.number().min(0, 'Must be ≥ 0'),
@@ -34,7 +36,13 @@ interface Props {
   resource?: Resource
   isPending: boolean
   onCancel: () => void
-  onSubmit: (data: FormValues) => void
+  onSubmit: (data: Omit<FormValues, 'firstName' | 'lastName'> & { name: string }) => void
+}
+
+function splitName(name: string): { firstName: string; lastName: string } {
+  const idx = name.indexOf(' ')
+  if (idx === -1) return { firstName: name, lastName: '' }
+  return { firstName: name.slice(0, idx), lastName: name.slice(idx + 1) }
 }
 
 export function ResourceForm({ resource, isPending, onCancel, onSubmit }: Props) {
@@ -46,10 +54,14 @@ export function ResourceForm({ resource, isPending, onCancel, onSubmit }: Props)
   const enableArchetype = org?.settings?.enableArchetype ?? false
   const enableMotto = org?.settings?.enableMotto ?? false
 
+  const { firstName: defFirst, lastName: defLast } = splitName(resource?.name ?? '')
+
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      name: resource?.name ?? '',
+      firstName: defFirst,
+      lastName: defLast,
+      email: resource?.email ?? '',
       type: resource?.type ?? 'human',
       costType: resource?.costType ?? 'opex',
       rate: resource?.rate ?? 0,
@@ -73,24 +85,53 @@ export function ResourceForm({ resource, isPending, onCancel, onSubmit }: Props)
 
   return (
     <form
-      onSubmit={handleSubmit((d) => onSubmit({
-        ...d,
-        userId: d.userId || undefined,
-        role: d.role || undefined,
-        seniorityLevel: d.seniorityLevel || undefined,
-        superpower: d.superpower || undefined,
-        startDate: d.startDate || undefined,
-        location: d.location || undefined,
-        avatarUrl: d.avatarUrl || undefined,
-        archetype: d.archetype || undefined,
-        motto: d.motto || undefined,
-      }))}
+      onSubmit={handleSubmit((d) => {
+        const name = [d.firstName.trim(), d.lastName?.trim()].filter(Boolean).join(' ')
+        onSubmit({
+          ...d,
+          name,
+          email: d.email || undefined,
+          userId: d.userId || undefined,
+          role: d.role || undefined,
+          seniorityLevel: d.seniorityLevel || undefined,
+          superpower: d.superpower || undefined,
+          startDate: d.startDate || undefined,
+          location: d.location || undefined,
+          avatarUrl: d.avatarUrl || undefined,
+          archetype: d.archetype || undefined,
+          motto: d.motto || undefined,
+        })
+      })}
       className="space-y-3"
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        {/* First Name + Last Name */}
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1">First Name *</label>
+          <input className="input-field" placeholder="First name" {...register('firstName')} />
+          {errors.firstName && <p className="field-error">{errors.firstName.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1">Last Name</label>
+          <input className="input-field" placeholder="Last name" {...register('lastName')} />
+        </div>
+
+        {/* Email */}
         <div className="sm:col-span-2">
-          <input className="input-field" placeholder="Resource name *" {...register('name')} />
-          {errors.name && <p className="field-error">{errors.name.message}</p>}
+          <label className="block text-xs text-muted-foreground mb-1">Email</label>
+          <input
+            type="email"
+            className="input-field"
+            placeholder="name@company.com"
+            {...register('email')}
+          />
+          {errors.email && <p className="field-error">{errors.email.message}</p>}
+        </div>
+
+        <div className="sm:col-span-2 border-t pt-3 mt-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Resource Details</p>
         </div>
 
         <div>
