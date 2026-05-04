@@ -37,7 +37,16 @@
       "PowerShell(Get-ChildItem -Path \"d:\\\\Digital_products\\\\Project_management_tool\\\\apps\\\\web\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
       "PowerShell(Get-ChildItem -Path \"d:\\\\Digital_products\\\\Project_management_tool\\\\apps\\\\web\" -Force | Where-Object {$_.PSIsContainer} | Select-Object Name)",
       "PowerShell(Get-ChildItem -Path \"d:\\\\Digital_products\\\\Project_management_tool\\\\packages\\\\shared\" -Force 2>$null | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN role TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN seniority_level TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN superpower TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN start_date TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN location TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN project_allocation REAL DEFAULT 100\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN avatar_url TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN archetype TEXT\" --remote)",
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN motto TEXT\" --remote)"
     ]
   }
 }

@@ -21,3 +21,11 @@ export function useUpdateProgram() {
     },
   })
 }
+
+export function useDeleteProgram() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ success: boolean }>(`/programs/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
+  })
+}

@@ -11,6 +11,16 @@ const resourceSchema = z.object({
   rate: z.number().min(0),
   currency: z.string().length(3).default('USD'),
   capacityHoursPerWeek: z.number().min(0).max(168).default(40),
+  // Human-specific fields
+  role: z.string().max(100).optional(),
+  seniorityLevel: z.string().max(50).optional(),
+  superpower: z.string().max(300).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  location: z.string().max(100).optional(),
+  projectAllocation: z.number().min(0).max(100).optional(),
+  avatarUrl: z.string().optional(),
+  archetype: z.string().max(100).optional(),
+  motto: z.string().max(300).optional(),
 })
 
 export const resourceRoutes = new Hono<HonoContext>()
@@ -33,14 +43,25 @@ resourceRoutes.post('/', requireAny('admin'), async (c) => {
 
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
-  const { userId, name, type, costType, rate, currency, capacityHoursPerWeek } = parsed.data
+  const {
+    userId, name, type, costType, rate, currency, capacityHoursPerWeek,
+    role, seniorityLevel, superpower, startDate, location,
+    projectAllocation, avatarUrl, archetype, motto,
+  } = parsed.data
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
-    INSERT INTO resources (id, org_id, user_id, name, type, cost_type, rate, currency, capacity_hours_per_week)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO resources (
+      id, org_id, user_id, name, type, cost_type, rate, currency, capacity_hours_per_week,
+      role, seniority_level, superpower, start_date, location,
+      project_allocation, avatar_url, archetype, motto
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
-    .bind(id, user.orgId, userId ?? null, name, type, costType, rate, currency, capacityHoursPerWeek)
+    .bind(
+      id, user.orgId, userId ?? null, name, type, costType, rate, currency, capacityHoursPerWeek,
+      role ?? null, seniorityLevel ?? null, superpower ?? null, startDate ?? null, location ?? null,
+      projectAllocation ?? 100, avatarUrl || null, archetype ?? null, motto ?? null,
+    )
     .run()
 
   const resource = await c.env.DB.prepare('SELECT * FROM resources WHERE id = ?').bind(id).first()
@@ -57,7 +78,11 @@ resourceRoutes.patch('/:id', requireAny('admin'), async (c) => {
   if (!resource) return c.json({ message: 'Not found' }, 404)
 
   const body = await c.req.json()
-  const allowed = ['name', 'type', 'cost_type', 'rate', 'currency', 'capacity_hours_per_week']
+  const allowed = [
+    'name', 'type', 'cost_type', 'rate', 'currency', 'capacity_hours_per_week',
+    'role', 'seniority_level', 'superpower', 'start_date', 'location',
+    'project_allocation', 'avatar_url', 'archetype', 'motto',
+  ]
   const updates = Object.entries(body)
     .filter(([k]) => allowed.includes(toSnake(k)))
     .map(([k, v]) => [toSnake(k), v])
@@ -71,6 +96,16 @@ resourceRoutes.patch('/:id', requireAny('admin'), async (c) => {
 
   const updated = await c.env.DB.prepare('SELECT * FROM resources WHERE id = ?').bind(id).first()
   return c.json(toCamel(updated!))
+})
+
+resourceRoutes.delete('/:id', requireAny('admin'), async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const resource = await c.env.DB.prepare('SELECT id FROM resources WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first()
+  if (!resource) return c.json({ message: 'Not found' }, 404)
+  await c.env.DB.prepare('DELETE FROM resources WHERE id = ?').bind(id).run()
+  return c.json({ success: true })
 })
 
 resourceRoutes.get('/heatmap', async (c) => {

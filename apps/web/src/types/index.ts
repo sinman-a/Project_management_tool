@@ -53,6 +53,15 @@ export interface Resource {
   rate: number
   currency: string
   capacityHoursPerWeek: number
+  role: string | null
+  seniorityLevel: string | null
+  superpower: string | null
+  startDate: string | null
+  location: string | null
+  projectAllocation: number | null
+  avatarUrl: string | null
+  archetype: string | null
+  motto: string | null
   createdAt: string
 }
 

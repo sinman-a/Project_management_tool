@@ -128,6 +128,16 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_mana
   return c.json(toCamel(updated!))
 })
 
+projectRoutes.delete('/:id', requireAny('admin', 'program_manager'), async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const project = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first()
+  if (!project) return c.json({ message: 'Not found' }, 404)
+  await c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id).run()
+  return c.json({ success: true })
+})
+
 projectRoutes.get('/:id/budget/history', async (c) => {
   const projectId = c.req.param('id')
   const { results } = await c.env.DB.prepare(

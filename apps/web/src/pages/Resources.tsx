@@ -1,26 +1,50 @@
 import { useState } from 'react'
-import { Users, Pencil, Plus } from 'lucide-react'
-import { useResources, useCreateResource, useUpdateResource } from '@/hooks/useResources'
+import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar } from 'lucide-react'
+import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from '@/hooks/useResources'
+import { useOrgSettings } from '@/hooks/useOrg'
 import { useAuthStore } from '@/stores/authStore'
 import { ResourceForm } from '@/components/resources/ResourceForm'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Resource } from '@/types'
+
+function avatarSrc(r: Resource): string {
+  if (r.avatarUrl) return r.avatarUrl
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.name)}&backgroundColor=3b82f6&textColor=ffffff`
+}
+
+function seniorityColor(s: string | null) {
+  if (!s) return 'bg-gray-100 text-gray-600'
+  const l = s.toLowerCase()
+  if (l.includes('senior') || l.includes('lead')) return 'bg-purple-100 text-purple-700'
+  if (l.includes('middle') || l.includes('mid')) return 'bg-blue-100 text-blue-700'
+  return 'bg-green-100 text-green-700'
+}
 
 export function Resources() {
   const { user } = useAuthStore()
   const { data: resources = [], isLoading } = useResources()
+  const { data: org } = useOrgSettings()
   const createResource = useCreateResource()
   const updateResource = useUpdateResource()
+  const deleteResource = useDeleteResource()
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Resource | null>(null)
+  const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const isAdmin = user?.role === 'admin'
+  const enableArchetype = org?.settings?.enableArchetype ?? false
+  const enableMotto = org?.settings?.enableMotto ?? false
 
   function handleClose() {
     setShowForm(false)
     setEditTarget(null)
+  }
+
+  function handleDelete(id: string) {
+    deleteResource.mutate(id, { onSuccess: () => setConfirmDeleteId(null) })
   }
 
   const humans = resources.filter((r) => r.type === 'human')
@@ -35,11 +59,29 @@ export function Resources() {
             {resources.length} resource{resources.length !== 1 ? 's' : ''} total
           </p>
         </div>
-        {isAdmin && !showForm && !editTarget && (
-          <Button onClick={() => { setEditTarget(null); setShowForm(true) }}>
-            <Plus className="w-4 h-4 mr-2" /> New Resource
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {resources.length > 0 && (
+            <div className="flex border rounded-md overflow-hidden">
+              <button
+                onClick={() => setView('cards')}
+                className={`px-2 py-1.5 text-xs flex items-center gap-1 transition-colors ${view === 'cards' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <LayoutGrid className="w-3 h-3" /> Cards
+              </button>
+              <button
+                onClick={() => setView('table')}
+                className={`px-2 py-1.5 text-xs flex items-center gap-1 transition-colors ${view === 'table' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <LayoutList className="w-3 h-3" /> Table
+              </button>
+            </div>
+          )}
+          {isAdmin && !showForm && !editTarget && (
+            <Button onClick={() => { setEditTarget(null); setShowForm(true) }}>
+              <Plus className="w-4 h-4 mr-2" /> New Resource
+            </Button>
+          )}
+        </div>
       </div>
 
       {(showForm || editTarget) && (
@@ -66,9 +108,32 @@ export function Resources() {
         </Card>
       )}
 
+      {/* Delete confirmation */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="font-semibold text-base">Delete Resource?</h3>
+            <p className="text-sm text-muted-foreground">
+              This will permanently remove the resource. Time logs referencing it will be unaffected but the resource won't be selectable for new logs.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleteResource.isPending}
+                onClick={() => handleDelete(confirmDeleteId)}
+              >
+                {deleteResource.isPending ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-32 rounded-lg bg-muted animate-pulse" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />)}
         </div>
       ) : resources.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -80,6 +145,15 @@ export function Resources() {
             </Button>
           )}
         </div>
+      ) : view === 'table' ? (
+        <TeamTable
+          humans={humans}
+          isAdmin={isAdmin}
+          enableArchetype={enableArchetype}
+          enableMotto={enableMotto}
+          onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
+          onDelete={(id) => setConfirmDeleteId(id)}
+        />
       ) : (
         <>
           {humans.length > 0 && (
@@ -87,7 +161,10 @@ export function Resources() {
               title="Human Resources"
               resources={humans}
               isAdmin={isAdmin}
+              enableArchetype={enableArchetype}
+              enableMotto={enableMotto}
               onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
+              onDelete={(id) => setConfirmDeleteId(id)}
             />
           )}
           {equipment.length > 0 && (
@@ -95,7 +172,10 @@ export function Resources() {
               title="Equipment"
               resources={equipment}
               isAdmin={isAdmin}
+              enableArchetype={false}
+              enableMotto={false}
               onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
+              onDelete={(id) => setConfirmDeleteId(id)}
             />
           )}
         </>
@@ -105,57 +185,220 @@ export function Resources() {
 }
 
 function ResourceGroup({
-  title,
-  resources,
-  isAdmin,
-  onEdit,
+  title, resources, isAdmin, enableArchetype, enableMotto, onEdit, onDelete,
 }: {
   title: string
   resources: Resource[]
   isAdmin: boolean
+  enableArchetype: boolean
+  enableMotto: boolean
   onEdit: (r: Resource) => void
+  onDelete: (id: string) => void
 }) {
   return (
     <div>
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{title}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {resources.map((resource) => (
-          <Card key={resource.id} className="hover:shadow-sm transition-shadow">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-sm font-semibold">{resource.name}</CardTitle>
-                <div className="flex gap-1">
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${resource.costType === 'capex' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {resource.costType.toUpperCase()}
-                  </span>
-                  {isAdmin && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-6 h-6"
-                      onClick={() => onEdit(resource)}
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-1 text-sm text-muted-foreground">
-              <div className="flex justify-between">
-                <span>Rate</span>
-                <span className="font-medium text-foreground">
-                  {formatCurrency(resource.rate)}/{resource.currency}/h
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Capacity</span>
-                <span>{resource.capacityHoursPerWeek}h/week</span>
-              </div>
-            </CardContent>
-          </Card>
+        {resources.map((r) => (
+          <ResourceCard
+            key={r.id}
+            resource={r}
+            isAdmin={isAdmin}
+            enableArchetype={enableArchetype}
+            enableMotto={enableMotto}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
       </div>
+    </div>
+  )
+}
+
+function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEdit, onDelete }: {
+  resource: Resource
+  isAdmin: boolean
+  enableArchetype: boolean
+  enableMotto: boolean
+  onEdit: (r: Resource) => void
+  onDelete: (id: string) => void
+}) {
+  const isHuman = r.type === 'human'
+  return (
+    <Card className="hover:shadow-sm transition-shadow">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            {isHuman && (
+              <img
+                src={avatarSrc(r)}
+                alt={r.name}
+                className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-border"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.name)}&backgroundColor=3b82f6&textColor=ffffff`
+                }}
+              />
+            )}
+            <div className="min-w-0">
+              <CardTitle className="text-sm font-semibold truncate">{r.name}</CardTitle>
+              {isHuman && r.role && (
+                <p className="text-xs text-muted-foreground truncate">{r.role}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-1 flex-shrink-0 items-start">
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.costType === 'capex' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+              {r.costType.toUpperCase()}
+            </span>
+            {isAdmin && (
+              <>
+                <Button size="icon" variant="ghost" className="w-6 h-6" onClick={() => onEdit(r)}>
+                  <Pencil className="w-3 h-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" onClick={() => onDelete(r.id)}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-1.5 text-sm text-muted-foreground">
+        {isHuman && r.seniorityLevel && (
+          <div>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${seniorityColor(r.seniorityLevel)}`}>
+              {r.seniorityLevel}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span>Rate</span>
+          <span className="font-medium text-foreground">{formatCurrency(r.rate)}/{r.currency}/h</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Capacity</span>
+          <span>{r.capacityHoursPerWeek}h/week</span>
+        </div>
+        {isHuman && r.projectAllocation != null && (
+          <div className="flex justify-between">
+            <span>Allocation</span>
+            <span className="font-medium text-foreground">{r.projectAllocation}%</span>
+          </div>
+        )}
+        {isHuman && r.location && (
+          <div className="flex items-center gap-1">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{r.location}</span>
+          </div>
+        )}
+        {isHuman && r.startDate && (
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3 h-3 flex-shrink-0" />
+            <span>Since {formatDate(r.startDate)}</span>
+          </div>
+        )}
+        {isHuman && r.superpower && (
+          <div className="flex items-start gap-1 pt-0.5">
+            <Zap className="w-3 h-3 flex-shrink-0 mt-0.5 text-amber-500" />
+            <span className="text-xs italic line-clamp-2">{r.superpower}</span>
+          </div>
+        )}
+        {isHuman && enableArchetype && r.archetype && (
+          <div className="text-xs text-muted-foreground border-t pt-1 mt-1">
+            <span className="font-medium text-foreground">Archetype:</span> {r.archetype}
+          </div>
+        )}
+        {isHuman && enableMotto && r.motto && (
+          <div className="text-xs text-muted-foreground italic border-t pt-1 mt-1">
+            "{r.motto}"
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDelete }: {
+  humans: Resource[]
+  isAdmin: boolean
+  enableArchetype: boolean
+  enableMotto: boolean
+  onEdit: (r: Resource) => void
+  onDelete: (id: string) => void
+}) {
+  if (humans.length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground text-sm border rounded-lg">
+        No human resources yet.
+      </div>
+    )
+  }
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/30 text-xs text-muted-foreground font-medium">
+          <tr>
+            <th className="text-left py-2 px-3">Name</th>
+            <th className="text-left py-2 px-3">Role</th>
+            <th className="text-left py-2 px-3">Seniority</th>
+            <th className="text-right py-2 px-3">Allocation</th>
+            <th className="text-right py-2 px-3">Rate</th>
+            {enableArchetype && <th className="text-left py-2 px-3">Archetype</th>}
+            {enableMotto && <th className="text-left py-2 px-3">Motto</th>}
+            {isAdmin && <th className="py-2 px-3" />}
+          </tr>
+        </thead>
+        <tbody>
+          {humans.map((r) => (
+            <tr key={r.id} className="border-t hover:bg-muted/20 transition-colors">
+              <td className="py-2.5 px-3">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={avatarSrc(r)}
+                    alt={r.name}
+                    className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-border"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.name)}&backgroundColor=3b82f6&textColor=ffffff`
+                    }}
+                  />
+                  <div>
+                    <p className="font-medium">{r.name}</p>
+                    {r.location && <p className="text-xs text-muted-foreground">{r.location}</p>}
+                  </div>
+                </div>
+              </td>
+              <td className="py-2.5 px-3 text-muted-foreground">{r.role ?? '—'}</td>
+              <td className="py-2.5 px-3">
+                {r.seniorityLevel
+                  ? <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${seniorityColor(r.seniorityLevel)}`}>{r.seniorityLevel}</span>
+                  : <span className="text-muted-foreground">—</span>}
+              </td>
+              <td className="py-2.5 px-3 text-right">
+                {r.projectAllocation != null ? `${r.projectAllocation}%` : '—'}
+              </td>
+              <td className="py-2.5 px-3 text-right text-muted-foreground">
+                {formatCurrency(r.rate)}/h
+              </td>
+              {enableArchetype && <td className="py-2.5 px-3 text-muted-foreground text-xs">{r.archetype ?? '—'}</td>}
+              {enableMotto && <td className="py-2.5 px-3 text-muted-foreground text-xs italic max-w-[200px] truncate">{r.motto ? `"${r.motto}"` : '—'}</td>}
+              {isAdmin && (
+                <td className="py-2.5 px-3">
+                  <div className="flex gap-1 justify-end">
+                    <Button size="icon" variant="ghost" className="w-6 h-6" onClick={() => onEdit(r)}>
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" onClick={() => onDelete(r.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

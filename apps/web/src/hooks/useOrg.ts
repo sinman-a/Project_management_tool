@@ -5,6 +5,10 @@ export interface OrgSettings {
   fiscalYearStart: number
   currency: string
   workingHoursPerDay: number
+  customRoles: string[]
+  customSeniority: string[]
+  enableArchetype: boolean
+  enableMotto: boolean
 }
 
 export interface OrgInfo {

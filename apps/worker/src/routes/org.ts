@@ -6,6 +6,10 @@ const settingsSchema = z.object({
   currency: z.enum(['USD', 'EUR', 'GBP', 'UAH']).optional(),
   fiscalYearStart: z.number().int().min(1).max(12).optional(),
   workingHoursPerDay: z.number().min(1).max(24).optional(),
+  customRoles: z.array(z.string().min(1).max(100)).optional(),
+  customSeniority: z.array(z.string().min(1).max(50)).optional(),
+  enableArchetype: z.boolean().optional(),
+  enableMotto: z.boolean().optional(),
 })
 
 export const orgRoutes = new Hono<HonoContext>()

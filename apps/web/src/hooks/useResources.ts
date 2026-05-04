@@ -38,3 +38,11 @@ export function useUpdateResource() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
   })
 }
+
+export function useDeleteResource() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ success: boolean }>(`/resources/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+  })
+}

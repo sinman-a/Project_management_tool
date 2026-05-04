@@ -94,6 +94,17 @@ programRoutes.patch('/:id', requireAny('admin', 'program_manager'), async (c) =>
   return c.json(toCamel(updated!))
 })
 
+programRoutes.delete('/:id', requireAny('admin', 'program_manager'), async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const program = await c.env.DB.prepare('SELECT id, owner_id FROM programs WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first<{ id: string; owner_id: string }>()
+  if (!program) return c.json({ message: 'Not found' }, 404)
+  if (user.role !== 'admin' && program.owner_id !== user.sub) return c.json({ message: 'Forbidden' }, 403)
+  await c.env.DB.prepare('DELETE FROM programs WHERE id = ?').bind(id).run()
+  return c.json({ success: true })
+})
+
 programRoutes.get('/:id/projects', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
