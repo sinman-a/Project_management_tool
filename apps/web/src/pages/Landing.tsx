@@ -21,6 +21,7 @@ function LandingNav() {
 
   return (
     <nav
+      aria-label="Site navigation"
       className={cn(
         'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
         scrolled
@@ -29,10 +30,10 @@ function LandingNav() {
       )}
     >
       <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-        <span className="text-lg font-bold tracking-tight">
+        <Link to="/" aria-label="PPM Tool home" className="text-lg font-bold tracking-tight">
           <span className="text-blue-600">PPM</span>
           <span className="text-gray-800"> Tool</span>
-        </span>
+        </Link>
         <div className="flex items-center gap-6">
           <Link
             to="/login"
@@ -204,7 +205,7 @@ function FeatureCard({ icon: Icon, title, desc, delay }: FeatureItem & { delay: 
         <Icon className="w-5 h-5 text-blue-600" />
       </div>
       <h3 className="font-semibold text-gray-900 mb-1.5">{title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+      <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
     </div>
   )
 }
@@ -227,7 +228,7 @@ function FeaturesSection() {
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
             Everything Your Portfolio Needs
           </h2>
-          <p className="text-gray-500 mt-3 max-w-xl mx-auto leading-relaxed">
+          <p className="text-gray-600 mt-3 max-w-xl mx-auto leading-relaxed">
             From high-level programme oversight to individual time logs — one tool,
             four roles, zero compromises.
           </p>
@@ -289,7 +290,7 @@ function StepCard({ number, title, desc, icon: Icon, delay }: StepItem & { delay
       </div>
       <span className="text-xs font-bold tracking-[0.2em] text-blue-400 uppercase">{number}</span>
       <h3 className="text-lg font-semibold text-gray-900 mt-1.5 mb-2">{title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed max-w-xs mx-auto">{desc}</p>
+      <p className="text-sm text-gray-600 leading-relaxed max-w-xs mx-auto">{desc}</p>
     </div>
   )
 }
@@ -379,7 +380,7 @@ function RoleCard({ role, icon: Icon, color, abilities, delay }: RoleItem & { de
       <h3 className="font-semibold text-gray-900 mb-3">{role}</h3>
       <ul className="space-y-1.5">
         {abilities.map((a) => (
-          <li key={a} className="flex items-center gap-2 text-sm text-gray-500">
+          <li key={a} className="flex items-center gap-2 text-sm text-gray-600">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
             {a}
           </li>
@@ -407,7 +408,7 @@ function RolesSection() {
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">
             Four Roles. Perfect Fit.
           </h2>
-          <p className="text-gray-500 mt-3 max-w-xl mx-auto leading-relaxed">
+          <p className="text-gray-600 mt-3 max-w-xl mx-auto leading-relaxed">
             Each role sees exactly what it needs — no more, no less.
           </p>
         </div>
@@ -471,14 +472,14 @@ function LandingFooter() {
           <span className="text-blue-600">PPM</span>
           <span className="text-gray-800"> Tool</span>
         </span>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-600">
           Open-source project portfolio management for self-hosters.
         </p>
         <a
           href="https://github.com/sinman-a/Project_management_tool"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
         >
           <Github className="w-4 h-4" />
           View on GitHub
@@ -493,13 +494,23 @@ function LandingFooter() {
 export function Landing() {
   return (
     <div className="min-h-screen bg-white">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100]
+                   focus:bg-white focus:text-blue-700 focus:px-4 focus:py-2 focus:rounded-lg
+                   focus:shadow-lg focus:font-semibold focus:text-sm"
+      >
+        Skip to main content
+      </a>
       <LandingNav />
-      <HeroSection />
-      <StatsStrip />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <RolesSection />
-      <CtaStrip />
+      <main id="main-content">
+        <HeroSection />
+        <StatsStrip />
+        <FeaturesSection />
+        <HowItWorksSection />
+        <RolesSection />
+        <CtaStrip />
+      </main>
       <LandingFooter />
     </div>
   )

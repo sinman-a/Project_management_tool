@@ -88,30 +88,59 @@ export async function recalculateProjectBudget(
   const burnRateCapex = spentCapex / weeksElapsed
   const burnRateOpex = spentOpex / weeksElapsed
 
-  const cpiCapex = project.budget_capex > 0 ? project.budget_capex / Math.max(spentCapex + committedCapex, 0.01) : 1
-  const cpiOpex = project.budget_opex > 0 ? project.budget_opex / Math.max(spentOpex + committedOpex, 0.01) : 1
+  const totalCapex = spentCapex + committedCapex
+  const totalOpex = spentOpex + committedOpex
+  const cpiCapex = totalCapex > 0 && project.budget_capex > 0 ? project.budget_capex / totalCapex : 1
+  const cpiOpex = totalOpex > 0 && project.budget_opex > 0 ? project.budget_opex / totalOpex : 1
+  const eacCapex = project.budget_capex / cpiCapex
+  const eacOpex = project.budget_opex / cpiOpex
 
-  const eacCapex = project.budget_capex / Math.max(cpiCapex, 0.01)
-  const eacOpex = project.budget_opex / Math.max(cpiOpex, 0.01)
+  // Upsert: update same-day snapshot if it exists, otherwise insert fresh row
+  const existing = await db
+    .prepare('SELECT id FROM budget_snapshots WHERE project_id = ? AND snapshot_date = ?')
+    .bind(projectId, snapshotDate)
+    .first<{ id: string }>()
 
-  const snapshotId = crypto.randomUUID()
-  await db
-    .prepare(`
-      INSERT INTO budget_snapshots
-        (id, project_id, snapshot_date, budget_capex, budget_opex,
-         spent_capex, spent_opex, committed_capex, committed_opex,
-         burn_rate_capex, burn_rate_opex, eac_capex, eac_opex)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    .bind(
-      snapshotId, projectId, snapshotDate,
-      project.budget_capex, project.budget_opex,
-      spentCapex, spentOpex,
-      committedCapex, committedOpex,
-      burnRateCapex, burnRateOpex,
-      eacCapex, eacOpex,
-    )
-    .run()
+  if (existing) {
+    await db
+      .prepare(`
+        UPDATE budget_snapshots SET
+          budget_capex = ?, budget_opex = ?,
+          spent_capex = ?, spent_opex = ?,
+          committed_capex = ?, committed_opex = ?,
+          burn_rate_capex = ?, burn_rate_opex = ?,
+          eac_capex = ?, eac_opex = ?
+        WHERE id = ?
+      `)
+      .bind(
+        project.budget_capex, project.budget_opex,
+        spentCapex, spentOpex,
+        committedCapex, committedOpex,
+        burnRateCapex, burnRateOpex,
+        eacCapex, eacOpex,
+        existing.id,
+      )
+      .run()
+  } else {
+    const snapshotId = crypto.randomUUID()
+    await db
+      .prepare(`
+        INSERT INTO budget_snapshots
+          (id, project_id, snapshot_date, budget_capex, budget_opex,
+           spent_capex, spent_opex, committed_capex, committed_opex,
+           burn_rate_capex, burn_rate_opex, eac_capex, eac_opex)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .bind(
+        snapshotId, projectId, snapshotDate,
+        project.budget_capex, project.budget_opex,
+        spentCapex, spentOpex,
+        committedCapex, committedOpex,
+        burnRateCapex, burnRateOpex,
+        eacCapex, eacOpex,
+      )
+      .run()
+  }
 
   const result: SnapshotResult = {
     projectId, snapshotDate,

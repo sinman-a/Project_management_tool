@@ -69,7 +69,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (setupLoading || authLoading) return <Spinner />
   if (setupStatus?.needsSetup) return <Navigate to="/setup" replace />
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
 
   return <AppShell>{children}</AppShell>
 }

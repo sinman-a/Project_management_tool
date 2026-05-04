@@ -28,10 +28,12 @@ projectRoutes.get('/portfolio/summary', async (c) => {
       bs.burn_rate_capex, bs.burn_rate_opex,
       bs.snapshot_date as last_snapshot_date
     FROM projects p
-    LEFT JOIN budget_snapshots bs ON bs.project_id = p.id
-      AND bs.snapshot_date = (
-        SELECT MAX(snapshot_date) FROM budget_snapshots WHERE project_id = p.id
-      )
+    LEFT JOIN budget_snapshots bs ON bs.id = (
+      SELECT id FROM budget_snapshots
+      WHERE project_id = p.id
+      ORDER BY snapshot_date DESC, rowid DESC
+      LIMIT 1
+    )
     WHERE p.org_id = ?
     ORDER BY p.created_at DESC
   `).bind(user.orgId).all()

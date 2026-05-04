@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -18,11 +18,13 @@ export function TopNav() {
   const location = useLocation()
   const { user, setUser } = useAuthStore()
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   async function handleLogout() {
     await api.post('/auth/logout', {})
     setUser(null)
     qc.clear()
+    navigate('/')
   }
 
   return (
@@ -60,7 +62,7 @@ export function TopNav() {
               </span>
             </span>
           )}
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign out">
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign out" aria-label="Sign out">
             <LogOut className="w-4 h-4" />
           </Button>
         </div>

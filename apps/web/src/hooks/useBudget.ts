@@ -45,8 +45,9 @@ export function useRecalculateBudget() {
   return useMutation({
     mutationFn: (projectId: string) =>
       api.post<BudgetSnapshot>(`/projects/${projectId}/budget/recalculate`, {}),
-    onSuccess: (_, projectId) => {
-      qc.invalidateQueries({ queryKey: ['budget', 'project', projectId] })
+    onSuccess: (data, projectId) => {
+      // Use the response directly — avoids round-trip to KV which may not have propagated yet
+      qc.setQueryData(['budget', 'project', projectId], data)
       qc.invalidateQueries({ queryKey: ['budget', 'history', projectId] })
       qc.invalidateQueries({ queryKey: ['portfolio', 'summary'] })
     },
