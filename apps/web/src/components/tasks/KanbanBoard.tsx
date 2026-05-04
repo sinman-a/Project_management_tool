@@ -103,6 +103,7 @@ interface ColumnProps {
   colorClass: string
   tasks: Task[]
   projectId: string
+  sprintId?: string
   canEdit: boolean
   isDragOver: boolean
   draggedTaskId: string | null
@@ -114,7 +115,7 @@ interface ColumnProps {
 }
 
 function KanbanColumn({
-  status, label, colorClass, tasks, projectId, canEdit,
+  status, label, colorClass, tasks, projectId, sprintId, canEdit,
   isDragOver, draggedTaskId,
   onTaskDragStart, onTaskDragEnd, onDrop, onDragOverColumn, onDragLeaveColumn,
 }: ColumnProps) {
@@ -201,7 +202,7 @@ function KanbanColumn({
                   onCancel={() => setShowForm(false)}
                   onSubmit={(data) =>
                     createTask.mutate(
-                      { ...data, status },
+                      { ...data, status, ...(sprintId ? { sprintId } : {}) },
                       { onSuccess: () => setShowForm(false) },
                     )
                   }
@@ -219,9 +220,10 @@ interface Props {
   projectId: string
   tasks: Task[]
   canEdit: boolean
+  sprintId?: string
 }
 
-export function KanbanBoard({ projectId, tasks, canEdit }: Props) {
+export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<TaskStatus | null>(null)
   const updateTask = useUpdateTask()
@@ -246,6 +248,7 @@ export function KanbanBoard({ projectId, tasks, canEdit }: Props) {
           colorClass={color}
           tasks={tasks.filter((t) => t.status === status)}
           projectId={projectId}
+          sprintId={sprintId}
           canEdit={canEdit}
           isDragOver={dropTarget === status}
           draggedTaskId={draggedTaskId}

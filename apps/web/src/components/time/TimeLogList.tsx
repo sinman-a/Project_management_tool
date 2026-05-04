@@ -1,4 +1,5 @@
 import { CheckCircle2, Clock, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useProjectTimeLogs, useApproveTimeLog, useDeleteTimeLog } from '@/hooks/useTimeLogs'
@@ -78,6 +79,7 @@ interface Props {
 }
 
 export function TimeLogList({ projectId }: Props) {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const { data: logs = [], isLoading } = useProjectTimeLogs(projectId)
   const canApprove = user?.role === 'admin' || user?.role === 'project_manager'
@@ -94,8 +96,15 @@ export function TimeLogList({ projectId }: Props) {
 
   if (logs.length === 0) {
     return (
-      <div className="py-12 text-center text-muted-foreground text-sm border rounded-lg">
-        No time logs yet for this project.
+      <div className="py-14 text-center border rounded-lg space-y-4">
+        <Clock className="w-10 h-10 text-muted-foreground/30 mx-auto" />
+        <div>
+          <p className="text-sm font-medium text-foreground">No time logs yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Log hours via the weekly timesheet and they'll appear here for approval.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
+          Open Timesheet
+        </Button>
       </div>
     )
   }

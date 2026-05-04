@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCreateSprint, useUpdateSprint, useDeleteSprint } from '@/hooks/useSprints'
-import { useUpdateTask } from '@/hooks/useTasks'
+import { useCreateTask, useUpdateTask } from '@/hooks/useTasks'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { Sprint, Task } from '@/types'
 
@@ -83,6 +83,41 @@ function SprintForm({
   )
 }
 
+function QuickAddTask({ sprintId, projectId }: { sprintId: string; projectId: string }) {
+  const [name, setName] = useState('')
+  const createTask = useCreateTask()
+
+  function submit() {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    createTask.mutate(
+      { projectId, sprintId, name: trimmed, type: 'agile_task', status: 'todo', priority: 'medium', estimatedHours: 0, costType: 'opex' },
+      { onSuccess: () => setName('') },
+    )
+  }
+
+  return (
+    <div className="flex gap-2 border-t pt-2 mt-1">
+      <input
+        className="input-field flex-1 text-xs h-7 py-1"
+        placeholder="Quick add task to sprint…"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2"
+        onClick={submit}
+        disabled={!name.trim() || createTask.isPending}
+      >
+        <Plus className="w-3 h-3" />
+      </Button>
+    </div>
+  )
+}
+
 function SprintCard({
   sprint,
   projectId,
@@ -94,7 +129,7 @@ function SprintCard({
   tasks: Task[]
   canEdit: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(sprint.status === 'active')
   const [editing, setEditing] = useState(false)
   const updateSprint = useUpdateSprint()
   const deleteSprint = useDeleteSprint()
@@ -159,29 +194,32 @@ function SprintCard({
         </CardContent>
       )}
 
-      {expanded && sprintTasks.length > 0 && (
+      {expanded && (
         <CardContent className="pt-0 pb-3">
-          <div className="space-y-1 border-t pt-2">
-            {sprintTasks.map((task) => (
-              <div key={task.id} className="flex items-center gap-2 text-sm py-0.5">
-                <select
-                  className="text-xs border-0 bg-transparent cursor-pointer focus:outline-none"
-                  value={task.status}
-                  onChange={(e) => updateTask.mutate({ id: task.id, status: e.target.value as Task['status'] })}
-                >
-                  {(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled'] as const).map((s) => (
-                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                  ))}
-                </select>
-                <span className={cn('flex-1 truncate', task.status === 'done' && 'line-through text-muted-foreground')}>
-                  {task.name}
-                </span>
-                {task.storyPoints != null && (
-                  <span className="text-xs text-muted-foreground">{task.storyPoints}p</span>
-                )}
-              </div>
-            ))}
-          </div>
+          {sprintTasks.length > 0 && (
+            <div className="space-y-1 border-t pt-2">
+              {sprintTasks.map((task) => (
+                <div key={task.id} className="flex items-center gap-2 text-sm py-0.5">
+                  <select
+                    className="text-xs border-0 bg-transparent cursor-pointer focus:outline-none"
+                    value={task.status}
+                    onChange={(e) => updateTask.mutate({ id: task.id, status: e.target.value as Task['status'] })}
+                  >
+                    {(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled'] as const).map((s) => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                  <span className={cn('flex-1 truncate', task.status === 'done' && 'line-through text-muted-foreground')}>
+                    {task.name}
+                  </span>
+                  {task.storyPoints != null && (
+                    <span className="text-xs text-muted-foreground">{task.storyPoints}p</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {canEdit && <QuickAddTask sprintId={sprint.id} projectId={projectId} />}
         </CardContent>
       )}
     </Card>

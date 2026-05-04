@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WBSList } from '@/components/tasks/WBSList'
 import { KanbanBoard } from '@/components/tasks/KanbanBoard'
+import { ScrumBoard } from '@/components/tasks/ScrumBoard'
 import { GanttChart } from '@/components/tasks/GanttChart'
 import { SprintPanel } from '@/components/sprints/SprintPanel'
 import { TimeLogList } from '@/components/time/TimeLogList'
@@ -70,7 +71,7 @@ export function ProjectDetail() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'wbs', label: `WBS (${tasks.length})` },
-    { key: 'kanban', label: 'Kanban' },
+    { key: 'kanban', label: sprints.length > 0 ? 'Scrum Board' : 'Kanban' },
     { key: 'gantt', label: 'Gantt' },
     { key: 'sprints', label: `Sprints (${sprints.length})` },
     { key: 'time', label: 'Time Logs' },
@@ -248,7 +249,10 @@ export function ProjectDetail() {
         {activeTab === 'wbs' && (
           <WBSList projectId={id!} tasks={tasks} canEdit={canEdit} />
         )}
-        {activeTab === 'kanban' && (
+        {activeTab === 'kanban' && sprints.length > 0 && (
+          <ScrumBoard projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />
+        )}
+        {activeTab === 'kanban' && sprints.length === 0 && (
           <KanbanBoard projectId={id!} tasks={tasks} canEdit={canEdit} />
         )}
         {activeTab === 'gantt' && (

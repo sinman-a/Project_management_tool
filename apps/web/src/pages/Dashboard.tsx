@@ -10,7 +10,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useProject } from '@/hooks/useProjects'
 import { useProjectBudget } from '@/hooks/useBudget'
 import { formatCurrency } from '@/lib/utils'
-import { Clock } from 'lucide-react'
+import { Clock, FolderOpen, FolderKanban, Layers, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -114,6 +114,7 @@ function KpiRow() {
 }
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const { dashboardView, setDashboardView } = useUiStore()
   const { data: projects = [], isLoading } = usePortfolioSummary()
 
@@ -142,7 +143,49 @@ export function Dashboard() {
             </div>
           )}
 
-          {!isLoading && dashboardView === 'portfolio' && (
+          {!isLoading && projects.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-center space-y-8">
+              <div>
+                <FolderOpen className="w-14 h-14 text-muted-foreground/20 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold">Welcome to PPM Tool</h2>
+                <p className="text-muted-foreground text-sm mt-2">Get started by creating your first project or program.</p>
+              </div>
+              <div className="flex gap-4 flex-wrap justify-center">
+                <Card
+                  className="w-44 cursor-pointer hover:shadow-md transition-shadow border-dashed"
+                  onClick={() => navigate('/projects')}
+                >
+                  <CardContent className="pt-6 pb-6 text-center">
+                    <FolderKanban className="w-8 h-8 text-primary/70 mx-auto mb-3" />
+                    <p className="font-medium text-sm">New Project</p>
+                    <p className="text-xs text-muted-foreground mt-1">Plan and track work</p>
+                  </CardContent>
+                </Card>
+                <Card
+                  className="w-44 cursor-pointer hover:shadow-md transition-shadow border-dashed"
+                  onClick={() => navigate('/programs')}
+                >
+                  <CardContent className="pt-6 pb-6 text-center">
+                    <Layers className="w-8 h-8 text-primary/70 mx-auto mb-3" />
+                    <p className="font-medium text-sm">New Program</p>
+                    <p className="text-xs text-muted-foreground mt-1">Group related projects</p>
+                  </CardContent>
+                </Card>
+                <Card
+                  className="w-44 cursor-pointer hover:shadow-md transition-shadow border-dashed"
+                  onClick={() => navigate('/resources')}
+                >
+                  <CardContent className="pt-6 pb-6 text-center">
+                    <Users className="w-8 h-8 text-primary/70 mx-auto mb-3" />
+                    <p className="font-medium text-sm">Add Resource</p>
+                    <p className="text-xs text-muted-foreground mt-1">Register your team</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && projects.length > 0 && dashboardView === 'portfolio' && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Project Portfolio ({projects.length})
@@ -151,7 +194,7 @@ export function Dashboard() {
             </div>
           )}
 
-          {!isLoading && dashboardView === 'heatmap' && (
+          {!isLoading && projects.length > 0 && dashboardView === 'heatmap' && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Resource Utilization
@@ -160,7 +203,7 @@ export function Dashboard() {
             </div>
           )}
 
-          {!isLoading && dashboardView !== 'portfolio' && dashboardView !== 'heatmap' && (
+          {!isLoading && projects.length > 0 && dashboardView !== 'portfolio' && dashboardView !== 'heatmap' && (
             <PortfolioTable projects={projects} />
           )}
         </div>
