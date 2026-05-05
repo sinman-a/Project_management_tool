@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, FolderOpen, Calendar, DollarSign, Archive, Trash2 } from 'lucide-react'
+import { Plus, FolderOpen, Calendar, DollarSign, Archive, Trash2, Upload } from 'lucide-react'
+import { ImportModal } from '@/components/settings/ImportModal'
 import { usePrograms } from '@/hooks/useProjects'
 import { useCreateProgram, useUpdateProgram, useDeleteProgram } from '@/hooks/usePrograms'
 import { useAuthStore } from '@/stores/authStore'
@@ -25,6 +26,7 @@ export function Programs() {
   const [editTarget, setEditTarget] = useState<Program | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [showImport, setShowImport] = useState(false)
 
   const programs = showArchived
     ? allPrograms
@@ -46,6 +48,7 @@ export function Programs() {
   const archivedCount = allPrograms.filter((p) => ARCHIVED_STATUSES.includes(p.status)).length
 
   return (
+    <>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -66,6 +69,12 @@ export function Programs() {
             >
               <Archive className="w-3.5 h-3.5 mr-1.5" />
               {showArchived ? 'Hide Archived' : 'Show Archived'}
+            </Button>
+          )}
+          {canCreateProjects() && (
+            <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import
             </Button>
           )}
           {canCreateProjects() && !showForm && (
@@ -228,5 +237,8 @@ export function Programs() {
         </div>
       )}
     </div>
+
+    {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+    </>
   )
 }

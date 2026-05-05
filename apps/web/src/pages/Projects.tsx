@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2 } from 'lucide-react'
+import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Upload } from 'lucide-react'
+import { ImportModal } from '@/components/settings/ImportModal'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, usePrograms } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
 import { ProjectForm } from '@/components/projects/ProjectForm'
@@ -29,6 +30,7 @@ export function Projects() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [assignTarget, setAssignTarget] = useState<Project | null>(null)
   const [assignProgramId, setAssignProgramId] = useState('')
+  const [showImport, setShowImport] = useState(false)
 
   const projects = showArchived
     ? allProjects
@@ -59,6 +61,7 @@ export function Projects() {
   const unlinkedCount = allProjects.filter((p) => !p.programId && !ARCHIVED_STATUSES.includes(p.status)).length
 
   return (
+    <>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -83,6 +86,12 @@ export function Projects() {
             >
               <Archive className="w-3.5 h-3.5 mr-1.5" />
               {showArchived ? 'Hide Archived' : 'Show Archived'}
+            </Button>
+          )}
+          {canCreateProjects() && (
+            <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import
             </Button>
           )}
           {canCreateProjects() && !showForm && (
@@ -295,5 +304,8 @@ export function Projects() {
         </div>
       )}
     </div>
+
+    {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+    </>
   )
 }

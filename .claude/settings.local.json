@@ -48,7 +48,9 @@
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN archetype TEXT\" --remote)",
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN motto TEXT\" --remote)",
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN email TEXT\" --remote)",
-      "Bash(grep -E \"\\\\.ts$|types\")"
+      "Bash(grep -E \"\\\\.ts$|types\")",
+      "Bash(Select-String -Path \"d:\\\\Digital_products\\\\Project_management_tool\\\\apps\\\\web\\\\src\\\\pages\\\\Projects.tsx\" -Pattern \"^\\\\}\")",
+      "Bash(Select-Object -Last 3)"
     ]
   }
 }

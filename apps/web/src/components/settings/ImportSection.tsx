@@ -343,6 +343,25 @@ function FileImportSection() {
   )
 }
 
+export function ImportContent() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-sm font-semibold">Asana</h3>
+          <span className="text-xs text-muted-foreground">Requires Asana OAuth app — see Developer Console</span>
+        </div>
+        <AsanaSection />
+      </div>
+
+      <div className="border-t pt-6">
+        <h3 className="text-sm font-semibold mb-3">File Import</h3>
+        <FileImportSection />
+      </div>
+    </div>
+  )
+}
+
 export function ImportSection() {
   return (
     <Card>
@@ -352,19 +371,8 @@ export function ImportSection() {
           Import
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-sm font-semibold">Asana</h3>
-            <span className="text-xs text-muted-foreground">Requires Asana OAuth app — see Developer Console</span>
-          </div>
-          <AsanaSection />
-        </div>
-
-        <div className="border-t pt-6">
-          <h3 className="text-sm font-semibold mb-3">File Import</h3>
-          <FileImportSection />
-        </div>
+      <CardContent>
+        <ImportContent />
       </CardContent>
     </Card>
   )
