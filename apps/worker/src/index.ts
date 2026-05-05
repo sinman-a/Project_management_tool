@@ -22,7 +22,7 @@ app.use('*', corsMiddleware)
 app.get('/api/health', (c) => c.json({ status: 'ok', ts: new Date().toISOString() }))
 
 app.route('/api/auth', authRoutes)
-app.route('/api/import/asana', importPublicRoutes)
+app.route('/api/import', importPublicRoutes)
 
 const api = new Hono<HonoContext>()
 api.use('*', authMiddleware)
