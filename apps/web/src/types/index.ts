@@ -8,7 +8,7 @@ export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'c
 
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled'
 
-export type TaskType = 'waterfall_phase' | 'agile_story' | 'agile_task' | 'milestone'
+export type TaskType = 'waterfall_phase' | 'agile_story' | 'agile_task' | 'milestone' | 'bug'
 
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low'
 
@@ -198,6 +198,24 @@ export interface ResourceAllocation {
   weekStart: string
   allocatedHours: number
   createdAt: string
+}
+
+export interface RiceItem {
+  id: string
+  projectId: string
+  milestone: string | null
+  goal: string | null
+  businessValue: string | null
+  userStory: string | null
+  reach: number
+  impact: number
+  confidence: number
+  effort: number
+  riceScore: number
+  createdBy: string
+  createdByName: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface StatusReport {

@@ -17,6 +17,7 @@ import { WBSList } from '@/components/tasks/WBSList'
 import { KanbanBoard } from '@/components/tasks/KanbanBoard'
 import { ScrumBoard } from '@/components/tasks/ScrumBoard'
 import { GanttChart } from '@/components/tasks/GanttChart'
+import { RiceMatrix } from '@/components/tasks/RiceMatrix'
 import { SprintPanel } from '@/components/sprints/SprintPanel'
 import { TimeLogList } from '@/components/time/TimeLogList'
 import { StatusReportList } from '@/components/reports/StatusReportList'
@@ -27,7 +28,7 @@ import type { ProjectStatus } from '@/types'
 
 const statusFlow: ProjectStatus[] = ['planning', 'active', 'on_hold', 'completed', 'cancelled']
 
-type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports'
+type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice'
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -71,9 +72,10 @@ export function ProjectDetail() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'wbs', label: `WBS (${tasks.length})` },
-    { key: 'kanban', label: sprints.length > 0 ? 'Scrum Board' : 'Kanban' },
+    { key: 'rice', label: 'RICE' },
+    { key: 'sprints', label: `Sprint (${sprints.length})` },
+    { key: 'kanban', label: 'Scrum Board' },
     { key: 'gantt', label: 'Gantt' },
-    { key: 'sprints', label: `Sprints (${sprints.length})` },
     { key: 'time', label: 'Time Logs' },
     { key: 'reports', label: 'Reports' },
   ]
@@ -260,6 +262,9 @@ export function ProjectDetail() {
         )}
         {activeTab === 'sprints' && (
           <SprintPanel projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />
+        )}
+        {activeTab === 'rice' && (
+          <RiceMatrix projectId={id!} canEdit={canEdit} />
         )}
         {activeTab === 'time' && (
           <TimeLogList projectId={id!} />

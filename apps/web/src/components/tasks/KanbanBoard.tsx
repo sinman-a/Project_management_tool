@@ -33,12 +33,13 @@ const PRIORITY_LABEL: Record<string, string> = {
 const TYPE_LABEL: Record<string, string> = {
   agile_task: 'Task',
   agile_story: 'Story',
+  bug: 'Bug',
   waterfall_phase: 'Phase',
   milestone: 'Milestone',
 }
 
 const ALL_PRIORITIES: TaskPriority[] = ['critical', 'high', 'medium', 'low']
-const ALL_TYPES: TaskType[] = ['agile_task', 'agile_story', 'waterfall_phase', 'milestone']
+const ALL_TYPES: TaskType[] = ['agile_task', 'agile_story', 'bug', 'waterfall_phase', 'milestone']
 
 interface Filters {
   search: string

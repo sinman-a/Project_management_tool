@@ -14,6 +14,7 @@ import { reportRoutes } from './routes/reports'
 import { orgRoutes } from './routes/org'
 import { handleScheduled } from './scheduled/budgetCron'
 import { importPublicRoutes, importRoutes } from './routes/import'
+import { riceRoutes } from './routes/rice'
 
 const app = new Hono<HonoContext>()
 
@@ -37,6 +38,7 @@ api.route('/users', userRoutes)
 api.route('/reports', reportRoutes)
 api.route('/org', orgRoutes)
 api.route('/import', importRoutes)
+api.route('/rice', riceRoutes)
 
 app.route('/api', api)
 

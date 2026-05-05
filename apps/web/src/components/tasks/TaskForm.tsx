@@ -10,7 +10,7 @@ import type { Task } from '@/types'
 const schema = z.object({
   name: z.string().min(1, 'Required'),
   description: z.string().optional(),
-  type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone']),
+  type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone', 'bug']),
   status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']),
   priority: z.enum(['critical', 'high', 'medium', 'low']),
   costType: z.enum(['capex', 'opex']),
@@ -98,6 +98,7 @@ export function TaskForm({ projectId, task, parentTaskId, isPending, onCancel, o
           <select className="input-field" {...register('type')}>
             <option value="agile_task">Agile Task</option>
             <option value="agile_story">User Story</option>
+            <option value="bug">Bug</option>
             <option value="waterfall_phase">Waterfall Phase</option>
             <option value="milestone">Milestone</option>
           </select>

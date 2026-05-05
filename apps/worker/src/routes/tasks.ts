@@ -9,7 +9,7 @@ const taskSchema = z.object({
   parentTaskId: z.string().uuid().optional(),
   name: z.string().min(1).max(300),
   description: z.string().optional(),
-  type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone']).default('agile_task'),
+  type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone', 'bug']).default('agile_task'),
   status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']).default('backlog'),
   priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
   assignedTo: z.string().uuid().optional(),
