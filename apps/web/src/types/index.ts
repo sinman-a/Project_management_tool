@@ -200,6 +200,19 @@ export interface ResourceAllocation {
   createdAt: string
 }
 
+export type TaskLinkType = 'parent' | 'child' | 'related' | 'duplicate' | 'predecessor' | 'successor'
+
+export interface TaskLink {
+  id: string
+  sourceTaskId: string
+  targetTaskId: string
+  linkType: TaskLinkType
+  sourceName: string
+  targetName: string
+  createdBy: string
+  createdAt: string
+}
+
 export interface RiceItem {
   id: string
   projectId: string

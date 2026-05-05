@@ -17,6 +17,7 @@ import { WBSList } from '@/components/tasks/WBSList'
 import { KanbanBoard } from '@/components/tasks/KanbanBoard'
 import { ScrumBoard } from '@/components/tasks/ScrumBoard'
 import { GanttChart } from '@/components/tasks/GanttChart'
+import { useProjectLinks } from '@/hooks/useTaskLinks'
 import { RiceMatrix } from '@/components/tasks/RiceMatrix'
 import { SprintPanel } from '@/components/sprints/SprintPanel'
 import { TimeLogList } from '@/components/time/TimeLogList'
@@ -40,6 +41,7 @@ export function ProjectDetail() {
   const recalculate = useRecalculateBudget()
   const { data: tasks = [] } = useTasks(id)
   const { data: sprints = [] } = useSprints(id)
+  const { data: projectLinks = [] } = useProjectLinks(id)
   const updateProject = useUpdateProject()
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('wbs')
@@ -258,7 +260,7 @@ export function ProjectDetail() {
           <KanbanBoard projectId={id!} tasks={tasks} canEdit={canEdit} />
         )}
         {activeTab === 'gantt' && (
-          <GanttChart tasks={tasks} />
+          <GanttChart tasks={tasks} links={projectLinks} />
         )}
         {activeTab === 'sprints' && (
           <SprintPanel projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />

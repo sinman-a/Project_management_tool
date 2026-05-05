@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
 import { TaskForm } from './TaskForm'
+import { TaskLinksPanel } from './TaskLinksPanel'
 import type { Task } from '@/types'
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -34,12 +35,14 @@ interface TaskRowProps {
   depth: number
   projectId: string
   canEdit: boolean
+  allTasks: Task[]
 }
 
-function TaskRow({ task, depth, projectId, canEdit }: TaskRowProps) {
+function TaskRow({ task, depth, projectId, canEdit, allTasks }: TaskRowProps) {
   const [expanded, setExpanded] = useState(true)
   const [showAddChild, setShowAddChild] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [showLinks, setShowLinks] = useState(false)
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
@@ -94,27 +97,40 @@ function TaskRow({ task, depth, projectId, canEdit }: TaskRowProps) {
           <span className="text-xs text-muted-foreground flex-shrink-0">{task.estimatedHours}h</span>
         )}
 
-        {canEdit && (
-          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setShowAddChild((v) => !v)}>
-              <Plus className="w-3 h-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setEditing((v) => !v)}>
-              <Pencil className="w-3 h-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-6 h-6 text-destructive"
-              onClick={() => {
-                if (confirm('Delete this task?')) deleteTask.mutate({ id: task.id, projectId })
-              }}
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          </div>
-        )}
+        <div className={cn('flex gap-0.5 flex-shrink-0', canEdit ? 'opacity-0 group-hover:opacity-100 transition-opacity' : 'hidden')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('w-6 h-6', showLinks && 'text-primary')}
+            title="Related work"
+            onClick={() => setShowLinks((v) => !v)}
+          >
+            <Link2 className="w-3 h-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setShowAddChild((v) => !v)}>
+            <Plus className="w-3 h-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setEditing((v) => !v)}>
+            <Pencil className="w-3 h-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-6 h-6 text-destructive"
+            onClick={() => {
+              if (confirm('Delete this task?')) deleteTask.mutate({ id: task.id, projectId })
+            }}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
       </div>
+
+      {showLinks && (
+        <div className="ml-4 mb-2 pl-2" style={{ paddingLeft: `${depth * 20 + 8}px` }}>
+          <TaskLinksPanel taskId={task.id} projectTasks={allTasks} canEdit={canEdit} />
+        </div>
+      )}
 
       {editing && (
         <div className="ml-8 mb-2">
@@ -155,7 +171,7 @@ function TaskRow({ task, depth, projectId, canEdit }: TaskRowProps) {
       {expanded && hasChildren && (
         <div>
           {task.children!.map((child) => (
-            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} />
+            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} allTasks={allTasks} />
           ))}
         </div>
       )}
@@ -173,6 +189,7 @@ export function WBSList({ projectId, tasks, canEdit }: Props) {
   const [showForm, setShowForm] = useState(false)
   const createTask = useCreateTask()
   const tree = buildTree(tasks)
+  const allTasks = tasks
 
   return (
     <div>
@@ -217,7 +234,7 @@ export function WBSList({ projectId, tasks, canEdit }: Props) {
             <span>Est.</span>
           </div>
           {tree.map((task) => (
-            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} />
+            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} allTasks={allTasks} />
           ))}
         </div>
       )}
