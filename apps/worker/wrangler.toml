@@ -25,5 +25,9 @@ crons = ["0 * * * *"]
 [vars]
 ENVIRONMENT = "production"
 JWT_EXPIRY = "86400"
+ASANA_REDIRECT_URI = "https://ppm-worker.almazor-schwab.workers.dev/api/import/asana/callback"
 
-# Set via: wrangler secret put JWT_SECRET
+# Secrets — set via wrangler CLI:
+#   wrangler secret put JWT_SECRET
+#   wrangler secret put ASANA_CLIENT_ID
+#   wrangler secret put ASANA_CLIENT_SECRET

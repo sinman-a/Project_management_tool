@@ -13,6 +13,7 @@ import { userRoutes } from './routes/users'
 import { reportRoutes } from './routes/reports'
 import { orgRoutes } from './routes/org'
 import { handleScheduled } from './scheduled/budgetCron'
+import { importPublicRoutes, importRoutes } from './routes/import'
 
 const app = new Hono<HonoContext>()
 
@@ -21,6 +22,7 @@ app.use('*', corsMiddleware)
 app.get('/api/health', (c) => c.json({ status: 'ok', ts: new Date().toISOString() }))
 
 app.route('/api/auth', authRoutes)
+app.route('/api/import/asana', importPublicRoutes)
 
 const api = new Hono<HonoContext>()
 api.use('*', authMiddleware)
@@ -34,6 +36,7 @@ api.route('/resources', resourceRoutes)
 api.route('/users', userRoutes)
 api.route('/reports', reportRoutes)
 api.route('/org', orgRoutes)
+api.route('/import', importRoutes)
 
 app.route('/api', api)
 

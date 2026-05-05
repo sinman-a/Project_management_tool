@@ -47,7 +47,8 @@
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN avatar_url TEXT\" --remote)",
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN archetype TEXT\" --remote)",
       "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN motto TEXT\" --remote)",
-      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN email TEXT\" --remote)"
+      "Bash(npx wrangler@4 d1 execute ppm-production --command=\"ALTER TABLE resources ADD COLUMN email TEXT\" --remote)",
+      "Bash(grep -E \"\\\\.ts$|types\")"
     ]
   }
 }

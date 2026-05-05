@@ -4,6 +4,7 @@ import { useUsers, useCreateUser, useUpdateUser } from '@/hooks/useUsers'
 import { useOrgSettings, useUpdateOrgSettings } from '@/hooks/useOrg'
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
+import { ImportSection } from '@/components/settings/ImportSection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -288,6 +289,9 @@ export function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Import */}
+      {isAdmin && <ImportSection />}
 
       {/* Team Members */}
       <Card>
