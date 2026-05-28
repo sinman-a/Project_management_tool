@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Pencil, Calendar, Users, CheckCircle2 } from 'lucide-react'
 import { useProject, useUpdateProject } from '@/hooks/useProjects'
 import { useProjectBudget, useProjectBudgetHistory, useRecalculateBudget } from '@/hooks/useBudget'
-import { useTasks } from '@/hooks/useTasks'
+import { useTasks, useProjectSchedule, useProjectTaskDeps, useAddDependency } from '@/hooks/useTasks'
 import { useSprints } from '@/hooks/useSprints'
 import { useAuthStore } from '@/stores/authStore'
 import { BudgetWidget } from '@/components/financials/BudgetWidget'
@@ -17,19 +17,22 @@ import { WBSList } from '@/components/tasks/WBSList'
 import { KanbanBoard } from '@/components/tasks/KanbanBoard'
 import { ScrumBoard } from '@/components/tasks/ScrumBoard'
 import { GanttChart } from '@/components/tasks/GanttChart'
+import { DependencyPopover } from '@/components/tasks/DependencyPopover'
 import { useProjectLinks } from '@/hooks/useTaskLinks'
 import { RiceMatrix } from '@/components/tasks/RiceMatrix'
 import { SprintPanel } from '@/components/sprints/SprintPanel'
 import { TimeLogList } from '@/components/time/TimeLogList'
 import { StatusReportList } from '@/components/reports/StatusReportList'
+import { RiskRegister } from '@/components/risks/RiskRegister'
+import { TopRisksWidget } from '@/components/risks/TopRisksWidget'
 import { formatDate } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ProjectForm } from '@/components/projects/ProjectForm'
-import type { ProjectStatus } from '@/types'
+import type { ProjectStatus, CpmFields, TaskDependency } from '@/types'
 
 const statusFlow: ProjectStatus[] = ['planning', 'active', 'on_hold', 'completed', 'cancelled']
 
-type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice'
+type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks'
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -42,9 +45,30 @@ export function ProjectDetail() {
   const { data: tasks = [] } = useTasks(id)
   const { data: sprints = [] } = useSprints(id)
   const { data: projectLinks = [] } = useProjectLinks(id)
+  const { data: schedule = [] } = useProjectSchedule(id)
+  const { data: taskDeps = [] } = useProjectTaskDeps(id)
+  const addDependency = useAddDependency()
   const updateProject = useUpdateProject()
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('wbs')
+  const [depPopover, setDepPopover] = useState<{ dep: TaskDependency; x: number; y: number } | null>(null)
+
+  const cpmMap = useMemo(() => {
+    const m = new Map<string, CpmFields>()
+    for (const entry of schedule) {
+      m.set(entry.id, {
+        earlyStart: entry.earlyStart,
+        earlyFinish: entry.earlyFinish,
+        lateStart: entry.lateStart,
+        lateFinish: entry.lateFinish,
+        totalFloat: entry.totalFloat,
+        isCritical: entry.isCritical,
+        duration: entry.duration,
+      })
+    }
+    return m
+  }, [schedule])
+
 
   const canEdit =
     user?.role === 'admin' ||
@@ -72,7 +96,9 @@ export function ProjectDetail() {
     )
   }
 
-  const TABS: { key: Tab; label: string }[] = [
+  const hasCriticalOpenRisk = (project as any)?.ragCapReason === 'critical_risk'
+
+  const TABS: { key: Tab; label: string; badge?: boolean }[] = [
     { key: 'wbs', label: `WBS (${tasks.length})` },
     { key: 'rice', label: 'RICE' },
     { key: 'sprints', label: `Sprint (${sprints.length})` },
@@ -80,6 +106,7 @@ export function ProjectDetail() {
     { key: 'gantt', label: 'Gantt' },
     { key: 'time', label: 'Time Logs' },
     { key: 'reports', label: 'Reports' },
+    { key: 'risks', label: 'Risks', badge: hasCriticalOpenRisk },
   ]
 
   return (
@@ -186,6 +213,9 @@ export function ProjectDetail() {
         </Card>
       </div>
 
+      {/* Top Risks */}
+      <TopRisksWidget projectId={id!} onRiskClick={() => setActiveTab('risks')} />
+
       {/* Budget */}
       {budget && <BudgetAlertBanner snapshot={budget} />}
       {budget ? (
@@ -234,11 +264,11 @@ export function ProjectDetail() {
 
       {/* Task tabs */}
       <div>
-        <div className="flex border-b gap-0 mb-4">
-          {TABS.map(({ key, label }) => (
+        <div className="flex border-b gap-0 mb-4 overflow-x-auto">
+          {TABS.map(({ key, label, badge }) => (
             <button
               key={key}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${
                 activeTab === key
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -246,12 +276,13 @@ export function ProjectDetail() {
               onClick={() => setActiveTab(key)}
             >
               {label}
+              {badge && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
             </button>
           ))}
         </div>
 
         {activeTab === 'wbs' && (
-          <WBSList projectId={id!} tasks={tasks} canEdit={canEdit} />
+          <WBSList projectId={id!} tasks={tasks} canEdit={canEdit} dependencies={taskDeps} cpmData={cpmMap.size > 0 ? cpmMap : undefined} />
         )}
         {activeTab === 'kanban' && sprints.length > 0 && (
           <ScrumBoard projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />
@@ -260,7 +291,29 @@ export function ProjectDetail() {
           <KanbanBoard projectId={id!} tasks={tasks} canEdit={canEdit} />
         )}
         {activeTab === 'gantt' && (
-          <GanttChart tasks={tasks} links={projectLinks} />
+          <>
+            <GanttChart
+              tasks={tasks}
+              links={projectLinks}
+              dependencies={taskDeps}
+              cpmData={cpmMap.size > 0 ? cpmMap : undefined}
+              onCreateDependency={canEdit ? (predId, succId) => {
+                addDependency.mutate({ taskId: succId, dependsOnId: predId })
+              } : undefined}
+              onArrowClick={(dep) => {
+                const rect = document.querySelector('[data-gantt-chart]')?.getBoundingClientRect()
+                setDepPopover({ dep, x: (rect?.left ?? 0) + 200, y: (rect?.top ?? 0) + 100 })
+              }}
+            />
+            {depPopover && (
+              <DependencyPopover
+                dep={depPopover.dep}
+                anchorX={depPopover.x}
+                anchorY={depPopover.y}
+                onClose={() => setDepPopover(null)}
+              />
+            )}
+          </>
         )}
         {activeTab === 'sprints' && (
           <SprintPanel projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />
@@ -273,6 +326,9 @@ export function ProjectDetail() {
         )}
         {activeTab === 'reports' && (
           <StatusReportList projectId={id!} />
+        )}
+        {activeTab === 'risks' && (
+          <RiskRegister projectId={id!} canEdit={canEdit} />
         )}
       </div>
     </div>

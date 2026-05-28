@@ -16,6 +16,9 @@ import { handleScheduled } from './scheduled/budgetCron'
 import { importPublicRoutes, importRoutes } from './routes/import'
 import { riceRoutes } from './routes/rice'
 import { taskLinkRoutes } from './routes/taskLinks'
+import { riskRoutes } from './routes/risks'
+import { riskCategoryRoutes } from './routes/riskCategories'
+import { projectDependencyRoutes } from './routes/projectDependencies'
 
 const app = new Hono<HonoContext>()
 
@@ -41,6 +44,9 @@ api.route('/org', orgRoutes)
 api.route('/import', importRoutes)
 api.route('/rice', riceRoutes)
 api.route('/task-links', taskLinkRoutes)
+api.route('/risks', riskRoutes)
+api.route('/risk-categories', riskCategoryRoutes)
+api.route('/programs', projectDependencyRoutes)
 
 app.route('/api', api)
 

@@ -4,16 +4,21 @@ import { useProgram } from '@/hooks/useProjects'
 import { useCreateProject, useUpdateProject } from '@/hooks/useProjects'
 import { useProjects } from '@/hooks/useProjects'
 import { useUpdateProgram } from '@/hooks/usePrograms'
+import { useProgramProjectDeps } from '@/hooks/useProjectDependencies'
 import { useAuthStore } from '@/stores/authStore'
 import { RagDot } from '@/components/layout/RagDot'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ProgramRoadmap } from '@/components/programs/ProgramRoadmap'
+import { RiskRegister } from '@/components/risks/RiskRegister'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { ProgramForm } from '@/components/programs/ProgramForm'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import type { Project } from '@/types'
+
+type Tab = 'projects' | 'roadmap' | 'risks'
 
 export function ProgramDetail() {
   const { id } = useParams<{ id: string }>()
@@ -21,12 +26,14 @@ export function ProgramDetail() {
   const { user } = useAuthStore()
   const { data: program, isLoading } = useProgram(id!)
   const { data: projects = [] } = useProjects(id)
+  const { data: projectDeps = [] } = useProgramProjectDeps(id)
   const updateProgram = useUpdateProgram()
   const createProject = useCreateProject()
   const updateProject = useUpdateProject()
   const [isEditing, setIsEditing] = useState(false)
   const [editProject, setEditProject] = useState<Project | null>(null)
   const [showNewProject, setShowNewProject] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('projects')
 
   const canEdit = user?.role === 'admin' || user?.role === 'program_manager'
 
@@ -121,8 +128,39 @@ export function ProgramDetail() {
         </Card>
       </div>
 
-      {/* Projects */}
-      <div>
+      {/* Tab bar */}
+      <div className="flex border-b gap-0">
+        {([
+          { key: 'projects', label: `Projects (${projects.length})` },
+          { key: 'roadmap', label: 'Roadmap' },
+          { key: 'risks', label: 'Risks' },
+        ] as { key: Tab; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setActiveTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Roadmap tab */}
+      {activeTab === 'roadmap' && (
+        <ProgramRoadmap projects={projects} dependencies={projectDeps} canEdit={canEdit} />
+      )}
+
+      {/* Risks tab */}
+      {activeTab === 'risks' && (
+        <RiskRegister programId={id!} canEdit={canEdit} />
+      )}
+
+      {/* Projects tab */}
+      {activeTab === 'projects' && <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Projects ({projects.length})</h2>
           {canEdit && !showNewProject && !editProject && (
@@ -216,7 +254,7 @@ export function ProgramDetail() {
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

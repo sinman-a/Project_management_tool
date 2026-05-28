@@ -6,7 +6,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
 import { TaskForm } from './TaskForm'
 import { TaskLinksPanel } from './TaskLinksPanel'
-import type { Task } from '@/types'
+import type { Task, TaskDependency, CpmFields } from '@/types'
+
+const DEP_SHORT: Record<string, string> = {
+  finish_to_start: 'FS',
+  start_to_start: 'SS',
+  finish_to_finish: 'FF',
+  start_to_finish: 'SF',
+}
+
+function formatPredecessors(
+  task: Task,
+  deps: TaskDependency[],
+  allTasks: Task[],
+): string {
+  const taskById = new Map(allTasks.map((t) => [t.id, t]))
+  const preds = deps.filter((d) => d.taskId === task.id)
+  if (!preds.length) return ''
+  return preds
+    .map((d) => {
+      const pred = taskById.get(d.dependsOnId)
+      const label = pred?.wbsCode ?? pred?.name.slice(0, 6) ?? d.dependsOnId.slice(0, 4)
+      const type = DEP_SHORT[d.dependencyType] ?? 'FS'
+      const lag = d.lagDays > 0 ? `+${d.lagDays}` : d.lagDays < 0 ? `${d.lagDays}` : ''
+      return `${label}${type}${lag}`
+    })
+    .join(', ')
+}
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: 'bg-red-100 text-red-800',
@@ -36,9 +62,11 @@ interface TaskRowProps {
   projectId: string
   canEdit: boolean
   allTasks: Task[]
+  dependencies: TaskDependency[]
+  cpmData?: Map<string, CpmFields>
 }
 
-function TaskRow({ task, depth, projectId, canEdit, allTasks }: TaskRowProps) {
+function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmData }: TaskRowProps) {
   const [expanded, setExpanded] = useState(true)
   const [showAddChild, setShowAddChild] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -92,6 +120,31 @@ function TaskRow({ task, depth, projectId, canEdit, allTasks }: TaskRowProps) {
             <option key={s} value={s}>{s.replace('_', ' ')}</option>
           ))}
         </select>
+
+        {/* Predecessors */}
+        {(() => {
+          const preds = formatPredecessors(task, dependencies, allTasks)
+          return preds ? (
+            <span className="text-xs text-muted-foreground font-mono flex-shrink-0 hidden sm:block" title="Predecessors">
+              {preds}
+            </span>
+          ) : null
+        })()}
+
+        {/* Float */}
+        {cpmData?.has(task.id) && (
+          <span
+            className={cn(
+              'text-xs font-mono flex-shrink-0 hidden sm:block',
+              cpmData.get(task.id)!.totalFloat === 0
+                ? 'text-red-600 font-bold'
+                : 'text-muted-foreground',
+            )}
+            title="Total float (days)"
+          >
+            {cpmData.get(task.id)!.totalFloat}d
+          </span>
+        )}
 
         {task.estimatedHours > 0 && (
           <span className="text-xs text-muted-foreground flex-shrink-0">{task.estimatedHours}h</span>
@@ -171,7 +224,7 @@ function TaskRow({ task, depth, projectId, canEdit, allTasks }: TaskRowProps) {
       {expanded && hasChildren && (
         <div>
           {task.children!.map((child) => (
-            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} allTasks={allTasks} />
+            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} />
           ))}
         </div>
       )}
@@ -183,21 +236,45 @@ interface Props {
   projectId: string
   tasks: Task[]
   canEdit: boolean
+  dependencies?: TaskDependency[]
+  cpmData?: Map<string, CpmFields>
 }
 
-export function WBSList({ projectId, tasks, canEdit }: Props) {
+export function WBSList({ projectId, tasks, canEdit, dependencies = [], cpmData }: Props) {
   const [showForm, setShowForm] = useState(false)
+  const [criticalOnly, setCriticalOnly] = useState(false)
   const createTask = useCreateTask()
-  const tree = buildTree(tasks)
+
+  const visibleTasks = criticalOnly && cpmData
+    ? tasks.filter((t) => cpmData.get(t.id)?.isCritical)
+    : tasks
+
+  const tree = buildTree(visibleTasks)
   const allTasks = tasks
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>{tasks.length} task{tasks.length !== 1 ? 's' : ''}</span>
-          <span>{tasks.filter((t) => t.status === 'done').length} done</span>
-          <span>{tasks.reduce((s, t) => s + t.estimatedHours, 0)}h estimated</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>{tasks.length} task{tasks.length !== 1 ? 's' : ''}</span>
+            <span>{tasks.filter((t) => t.status === 'done').length} done</span>
+            <span>{tasks.reduce((s, t) => s + t.estimatedHours, 0)}h estimated</span>
+          </div>
+          {cpmData && cpmData.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setCriticalOnly((v) => !v)}
+              className={cn(
+                'text-xs px-2 py-0.5 rounded border transition-colors',
+                criticalOnly
+                  ? 'bg-red-50 border-red-300 text-red-700'
+                  : 'bg-muted border-border text-muted-foreground',
+              )}
+            >
+              Critical only
+            </button>
+          )}
         </div>
         {canEdit && (
           <Button size="sm" variant="outline" onClick={() => setShowForm((v) => !v)}>
@@ -234,7 +311,7 @@ export function WBSList({ projectId, tasks, canEdit }: Props) {
             <span>Est.</span>
           </div>
           {tree.map((task) => (
-            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} allTasks={allTasks} />
+            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} />
           ))}
         </div>
       )}

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { UserPlus, Pencil, ShieldCheck, DollarSign, Users, Star, Plus, X, ToggleLeft, ToggleRight } from 'lucide-react'
+import { UserPlus, Pencil, ShieldCheck, DollarSign, Users, Star, Plus, X, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react'
 import { useUsers, useCreateUser, useUpdateUser } from '@/hooks/useUsers'
 import { useOrgSettings, useUpdateOrgSettings } from '@/hooks/useOrg'
+import { useRiskCategories, useCreateRiskCategory, useDeleteRiskCategory } from '@/hooks/useRiskCategories'
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
 import { ImportSection } from '@/components/settings/ImportSection'
@@ -102,11 +103,15 @@ export function Settings() {
   const isAdmin = me?.role === 'admin'
   const { data: users = [], isLoading } = useUsers()
   const { data: org } = useOrgSettings()
+  const { data: riskCategories = [] } = useRiskCategories()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const updateOrgSettings = useUpdateOrgSettings()
+  const createRiskCategory = useCreateRiskCategory()
+  const deleteRiskCategory = useDeleteRiskCategory()
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<User | null>(null)
+  const [newCategoryName, setNewCategoryName] = useState('')
 
   const customRoles = org?.settings?.customRoles ?? []
   const customSeniority = org?.settings?.customSeniority ?? []
@@ -289,6 +294,77 @@ export function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Risk Categories */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              <AlertTriangle className="inline-block w-4 h-4 mr-2 text-primary" />
+              Risk Categories
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Built-in categories</p>
+              <div className="flex flex-wrap gap-2">
+                {riskCategories.filter((c) => c.isBuiltin).map((c) => (
+                  <span key={c.id} className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">{c.name}</span>
+                ))}
+              </div>
+            </div>
+            {riskCategories.filter((c) => !c.isBuiltin).length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Custom categories</p>
+                <div className="flex flex-wrap gap-2">
+                  {riskCategories.filter((c) => !c.isBuiltin).map((c) => (
+                    <span key={c.id} className="inline-flex items-center gap-1 text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
+                      {c.name}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete category "${c.name}"?`)) {
+                            deleteRiskCategory.mutate(c.id, {
+                              onError: (err: unknown) => {
+                                const msg = (err as { message?: string })?.message ?? ''
+                                if (msg.includes('CATEGORY_IN_USE')) alert('Category is in use by one or more risks.')
+                              },
+                            })
+                          }
+                        }}
+                        className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2 mt-3">
+              <input
+                className="input-field flex-1"
+                placeholder="New category name…"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCategoryName.trim()) {
+                    e.preventDefault()
+                    createRiskCategory.mutate(newCategoryName.trim(), { onSuccess: () => setNewCategoryName('') })
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!newCategoryName.trim() || createRiskCategory.isPending}
+                onClick={() => createRiskCategory.mutate(newCategoryName.trim(), { onSuccess: () => setNewCategoryName('') })}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Import */}
       {isAdmin && <ImportSection />}

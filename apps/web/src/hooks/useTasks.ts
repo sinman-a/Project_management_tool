@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Task, TaskDependency } from '@/types'
+import type { Task, TaskDependency, TaskScheduleEntry } from '@/types'
 
 export function useTasks(projectId: string | undefined) {
   return useQuery({
@@ -68,5 +68,34 @@ export function useRemoveDependency() {
     mutationFn: ({ taskId, depId }: { taskId: string; depId: string }) =>
       api.delete(`/tasks/${taskId}/dependencies/${depId}`),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['task-deps', vars.taskId] }),
+  })
+}
+
+export function useProjectTaskDeps(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['task-deps', { projectId }],
+    queryFn: () => api.get<(TaskDependency & { taskName: string; dependsOnName: string })[]>(`/projects/${projectId}/task-dependencies`),
+    enabled: !!projectId,
+  })
+}
+
+export function useProjectSchedule(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['schedule', { projectId }],
+    queryFn: () => api.get<TaskScheduleEntry[]>(`/projects/${projectId}/schedule`),
+    enabled: !!projectId,
+  })
+}
+
+export function useUpdateDependency() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, depId, ...data }: { taskId: string; depId: string; dependencyType?: TaskDependency['dependencyType']; lagDays?: number }) =>
+      api.patch<TaskDependency>(`/tasks/${taskId}/dependencies/${depId}`, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['task-deps', vars.taskId] })
+      qc.invalidateQueries({ queryKey: ['task-deps'] })
+      qc.invalidateQueries({ queryKey: ['schedule'] })
+    },
   })
 }

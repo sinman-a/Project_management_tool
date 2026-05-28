@@ -4,12 +4,19 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RagStatusSelect } from './RagStatusSelect'
 import { useCreateReport, useUpdateReport } from '@/hooks/useReports'
+import { useTopRisks } from '@/hooks/useRisks'
 import type { StatusReport, CreateReportInput } from '@/hooks/useReports'
 
 interface Risk {
   title: string
   severity: 'high' | 'medium' | 'low'
   mitigation: string
+}
+
+function bandToSeverity(band: string): Risk['severity'] {
+  if (band === 'critical' || band === 'high') return 'high'
+  if (band === 'medium') return 'medium'
+  return 'low'
 }
 
 interface Props {
@@ -32,6 +39,7 @@ function weekAgo() {
 export function StatusReportForm({ projectId, programId, existing, onClose }: Props) {
   const create = useCreateReport()
   const update = useUpdateReport()
+  const { data: topRisks } = useTopRisks(projectId, 3)
 
   const [reportDate, setReportDate] = useState(existing?.reportDate ?? today())
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? weekAgo())
@@ -46,6 +54,17 @@ export function StatusReportForm({ projectId, programId, existing, onClose }: Pr
     if (!existing?.risksIssues) return []
     try { return JSON.parse(existing.risksIssues) } catch { return [] }
   })
+
+  // Pre-populate top risks when creating a new report
+  useEffect(() => {
+    if (!existing && topRisks && topRisks.length > 0 && risks.length === 0) {
+      setRisks(topRisks.map((r) => ({
+        title: `R-${String(r.riskNumber).padStart(3, '0')}: ${r.title}`,
+        severity: bandToSeverity(r.scoreBand),
+        mitigation: r.mitigationActions ?? '',
+      })))
+    }
+  }, [topRisks, existing])
 
   useEffect(() => {
     if (existing) {

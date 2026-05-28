@@ -256,3 +256,88 @@ export interface AuthUser {
   role: UserRole
   orgId: string
 }
+
+// ============================================================
+// CPM / Schedule
+// ============================================================
+
+export interface CpmFields {
+  earlyStart: number
+  earlyFinish: number
+  lateStart: number
+  lateFinish: number
+  totalFloat: number
+  isCritical: boolean
+  duration: number
+}
+
+export type TaskScheduleEntry = { id: string } & CpmFields
+
+export interface ProjectDependency {
+  id: string
+  projectId: string
+  dependsOnId: string
+  dependencyType: DependencyType
+  lagDays: number
+  projectName?: string
+  dependsOnName?: string
+  createdAt: string
+}
+
+// ============================================================
+// Risk Register
+// ============================================================
+
+export type RiskStatus =
+  | 'identified'
+  | 'analyzing'
+  | 'mitigating'
+  | 'closed'
+  | 'accepted'
+  | 'occurred'
+
+export type RiskResponseStrategy = 'avoid' | 'transfer' | 'mitigate' | 'accept'
+
+export type RiskScoreBand = 'low' | 'medium' | 'high' | 'critical'
+
+export interface Risk {
+  id: string
+  projectId: string
+  riskNumber: number
+  title: string
+  description: string | null
+  category: string
+  probability: number
+  impact: number
+  score: number
+  scoreBand: RiskScoreBand
+  ownerId: string | null
+  ownerName: string | null
+  status: RiskStatus
+  responseStrategy: RiskResponseStrategy | null
+  mitigationActions: string | null
+  contingencyPlan: string | null
+  triggerIndicators: string | null
+  dateIdentified: string
+  dateLastReviewed: string | null
+  nextReviewDate: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+  projectName?: string
+}
+
+export interface RiskCategory {
+  id: string
+  orgId: string
+  name: string
+  isBuiltin: boolean
+  createdAt: string
+}
+
+export interface RiskHeatmapCell {
+  probability: number
+  impact: number
+  count: number
+}

@@ -91,7 +91,7 @@ taskRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
 
   const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
-    .bind(id).first<{ assigned_to: string | null; project_id: string }>()
+    .bind(id).first<{ assigned_to: string | null; project_id: string; estimated_hours: number; due_date: string | null }>()
   if (!task) return c.json({ message: 'Not found' }, 404)
 
   if (user.role === 'team_member' && task.assigned_to !== user.sub) {
@@ -124,8 +124,19 @@ taskRoutes.patch('/:id', async (c) => {
   await c.env.DB.prepare(`UPDATE tasks SET ${setClauses} WHERE id = ?`)
     .bind(...updates.map(([, v]) => v), id).run()
 
-  const updated = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first()
-  return c.json(toCamel(updated!))
+  const updated = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first<Record<string, unknown>>()
+
+  // Auto-reschedule FS successors when due_date changes
+  const dateChanged = updates.some(([k]) => k === 'due_date')
+  const cascade: Record<string, unknown>[] = []
+  if (dateChanged && updated) {
+    const newDueDate = updated.due_date as string | null
+    if (newDueDate) {
+      cascade.push(...await propagateReschedule(c.env.DB, id, newDueDate, task.project_id))
+    }
+  }
+
+  return c.json({ updated: toCamel(updated!), cascade: cascade.map(toCamel) })
 })
 
 taskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
@@ -162,10 +173,89 @@ taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pro
   return c.json({ id, taskId, ...parsed.data }, 201)
 })
 
+taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+  const depId = c.req.param('depId')
+  const body = await c.req.json()
+  const schema = z.object({
+    dependencyType: z.enum(['finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish']).optional(),
+    lagDays: z.number().int().min(-30).max(60).optional(),
+  })
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+
+  const updates: [string, unknown][] = []
+  if (parsed.data.dependencyType !== undefined) updates.push(['dependency_type', parsed.data.dependencyType])
+  if (parsed.data.lagDays !== undefined) updates.push(['lag_days', parsed.data.lagDays])
+  if (updates.length === 0) return c.json({ message: 'No valid fields' }, 400)
+
+  const setClauses = updates.map(([k]) => `${k} = ?`).join(', ')
+  await c.env.DB.prepare(`UPDATE task_dependencies SET ${setClauses} WHERE id = ?`)
+    .bind(...updates.map(([, v]) => v), depId).run()
+
+  const dep = await c.env.DB.prepare('SELECT * FROM task_dependencies WHERE id = ?').bind(depId).first()
+  return c.json(toCamel(dep!))
+})
+
 taskRoutes.delete('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
   await c.env.DB.prepare('DELETE FROM task_dependencies WHERE id = ?').bind(c.req.param('depId')).run()
   return c.json({ success: true })
 })
+
+// BFS reschedule: propagate new due_date forward through FS successors
+async function propagateReschedule(
+  db: D1Database,
+  changedTaskId: string,
+  newDueDate: string,
+  projectId: string,
+): Promise<Record<string, unknown>[]> {
+  const HOURS_PER_DAY = 8
+  const updated: Record<string, unknown>[] = []
+  const visited = new Set<string>()
+  const queue: Array<{ predId: string; predDueDate: string }> = [{ predId: changedTaskId, predDueDate: newDueDate }]
+
+  while (queue.length > 0) {
+    const { predId, predDueDate } = queue.shift()!
+
+    const { results: successors } = await db.prepare(`
+      SELECT td.task_id, td.lag_days, t.estimated_hours, t.start_date, t.due_date, t.status
+      FROM task_dependencies td
+      JOIN tasks t ON t.id = td.task_id
+      WHERE td.depends_on_id = ? AND td.dependency_type = 'finish_to_start'
+        AND t.project_id = ? AND t.status NOT IN ('done','cancelled')
+    `).bind(predId, projectId).all<{
+      task_id: string; lag_days: number; estimated_hours: number
+      start_date: string | null; due_date: string | null; status: string
+    }>()
+
+    for (const s of successors) {
+      if (visited.has(s.task_id)) continue
+      visited.add(s.task_id)
+
+      // new start = predDueDate + lagDays + 1
+      const predDt = new Date(predDueDate)
+      predDt.setDate(predDt.getDate() + s.lag_days + 1)
+      const newStart = predDt.toISOString().slice(0, 10)
+
+      const currentStart = s.start_date
+      if (currentStart && newStart <= currentStart) continue // no change needed
+
+      const durationDays = Math.max(Math.ceil(s.estimated_hours / HOURS_PER_DAY), 1)
+      const endDt = new Date(newStart)
+      endDt.setDate(endDt.getDate() + durationDays - 1)
+      const newEnd = endDt.toISOString().slice(0, 10)
+
+      await db.prepare(
+        `UPDATE tasks SET start_date = ?, due_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      ).bind(newStart, newEnd, s.task_id).run()
+
+      const row = await db.prepare('SELECT * FROM tasks WHERE id = ?').bind(s.task_id).first<Record<string, unknown>>()
+      if (row) updated.push(row)
+
+      queue.push({ predId: s.task_id, predDueDate: newEnd })
+    }
+  }
+  return updated
+}
 
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(

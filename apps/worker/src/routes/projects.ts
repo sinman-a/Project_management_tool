@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { recalculateProjectBudget } from '../services/budgetService'
+import { computeCPM, CycleError } from '../services/cpmService'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -65,12 +66,27 @@ projectRoutes.get('/', async (c) => {
 
 projectRoutes.get('/:id', async (c) => {
   const user = c.get('user')
+  const id = c.req.param('id')
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ? AND org_id = ?')
-    .bind(c.req.param('id'), user.orgId)
-    .first()
+    .bind(id, user.orgId)
+    .first<Record<string, unknown>>()
 
   if (!project) return c.json({ message: 'Not found' }, 404)
-  return c.json(toCamel(project))
+
+  // RAG cap: if any open critical risk exists → cap rag_status at 'amber'
+  const criticalRisk = await c.env.DB.prepare(`
+    SELECT id FROM risks
+    WHERE project_id = ? AND score_band = 'critical'
+      AND status NOT IN ('closed','accepted') AND deleted_at IS NULL
+    LIMIT 1
+  `).bind(id).first()
+
+  const result = toCamel(project) as Record<string, unknown>
+  if (criticalRisk && result.ragStatus === 'green') {
+    result.ragStatus = 'amber'
+    result.ragCapReason = 'critical_risk'
+  }
+  return c.json(result)
 })
 
 projectRoutes.post('/', requireAny('admin', 'program_manager'), async (c) => {
@@ -170,6 +186,75 @@ projectRoutes.get('/:id/budget', async (c) => {
 
   if (!snapshot) return c.json({ message: 'No snapshot yet' }, 404)
   return c.json(toCamel(snapshot))
+})
+
+// GET /:id/task-dependencies — all deps for a project (for Gantt + WBS)
+projectRoutes.get('/:id/task-dependencies', async (c) => {
+  const projectId = c.req.param('id')
+  const { results } = await c.env.DB.prepare(`
+    SELECT td.*,
+           t1.name as depends_on_name,
+           t2.name as task_name
+    FROM task_dependencies td
+    JOIN tasks t1 ON t1.id = td.depends_on_id
+    JOIN tasks t2 ON t2.id = td.task_id
+    WHERE t1.project_id = ? OR t2.project_id = ?
+  `).bind(projectId, projectId).all()
+  return c.json(results.map(toCamel))
+})
+
+// GET /:id/schedule — CPM-computed schedule for all project tasks
+projectRoutes.get('/:id/schedule', async (c) => {
+  const projectId = c.req.param('id')
+
+  const { results: taskRows } = await c.env.DB.prepare(
+    'SELECT id, estimated_hours, start_date, due_date, status FROM tasks WHERE project_id = ?',
+  ).bind(projectId).all<{ id: string; estimated_hours: number; start_date: string | null; due_date: string | null; status: string }>()
+
+  const { results: depRows } = await c.env.DB.prepare(`
+    SELECT td.task_id, td.depends_on_id, td.dependency_type, td.lag_days
+    FROM task_dependencies td
+    JOIN tasks t ON t.id = td.task_id
+    WHERE t.project_id = ?
+  `).bind(projectId).all<{ task_id: string; depends_on_id: string; dependency_type: string; lag_days: number }>()
+
+  const cpmTasks = taskRows.map((r) => ({
+    id: r.id,
+    estimatedHours: r.estimated_hours,
+    startDate: r.start_date,
+    dueDate: r.due_date,
+    status: r.status,
+  }))
+
+  const cpmDeps = depRows.map((r) => ({
+    taskId: r.task_id,
+    dependsOnId: r.depends_on_id,
+    dependencyType: r.dependency_type as import('../services/cpmService').DependencyType,
+    lagDays: r.lag_days,
+  }))
+
+  try {
+    const cpmResult = computeCPM(cpmTasks, cpmDeps)
+    const schedule = cpmTasks.map((t) => {
+      const cpm = cpmResult.get(t.id)
+      return {
+        id: t.id,
+        earlyStart: cpm?.earlyStart ?? 0,
+        earlyFinish: cpm?.earlyFinish ?? 0,
+        lateStart: cpm?.lateStart ?? 0,
+        lateFinish: cpm?.lateFinish ?? 0,
+        totalFloat: cpm?.totalFloat ?? 0,
+        isCritical: cpm?.isCritical ?? false,
+        duration: cpm?.duration ?? 0,
+      }
+    })
+    return c.json(schedule)
+  } catch (e) {
+    if (e instanceof CycleError) {
+      return c.json({ message: 'Cycle detected in task dependencies', cycle: e.cycle }, 409)
+    }
+    throw e
+  }
 })
 
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
