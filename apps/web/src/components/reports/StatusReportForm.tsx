@@ -3,7 +3,7 @@ import { X, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RagStatusSelect } from './RagStatusSelect'
-import { useCreateReport, useUpdateReport } from '@/hooks/useReports'
+import { useCreateReport, useUpdateReport, useRAGSuggestion } from '@/hooks/useReports'
 import { useTopRisks } from '@/hooks/useRisks'
 import type { StatusReport, CreateReportInput } from '@/hooks/useReports'
 
@@ -40,6 +40,7 @@ export function StatusReportForm({ projectId, programId, existing, onClose }: Pr
   const create = useCreateReport()
   const update = useUpdateReport()
   const { data: topRisks } = useTopRisks(projectId, 3)
+  const { data: suggestion } = useRAGSuggestion(!existing ? projectId : undefined)
 
   const [reportDate, setReportDate] = useState(existing?.reportDate ?? today())
   const [periodStart, setPeriodStart] = useState(existing?.periodStart ?? weekAgo())
@@ -54,6 +55,16 @@ export function StatusReportForm({ projectId, programId, existing, onClose }: Pr
     if (!existing?.risksIssues) return []
     try { return JSON.parse(existing.risksIssues) } catch { return [] }
   })
+
+  // Pre-populate RAGs from suggestion when creating a new report
+  useEffect(() => {
+    if (!existing && suggestion) {
+      setOverallStatus(suggestion.rags.overall)
+      setScheduleStatus(suggestion.rags.schedule)
+      setBudgetStatus(suggestion.rags.budget)
+      setScopeStatus(suggestion.rags.scope)
+    }
+  }, [suggestion, existing])
 
   // Pre-populate top risks when creating a new report
   useEffect(() => {
@@ -152,14 +163,24 @@ export function StatusReportForm({ projectId, programId, existing, onClose }: Pr
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(
               [
-                ['Overall', overallStatus, setOverallStatus],
-                ['Schedule', scheduleStatus, setScheduleStatus],
-                ['Budget', budgetStatus, setBudgetStatus],
-                ['Scope', scopeStatus, setScopeStatus],
-              ] as [string, 'green' | 'amber' | 'red', (v: 'green' | 'amber' | 'red') => void][]
-            ).map(([label, val, setter]) => (
+                ['Overall', overallStatus, setOverallStatus, suggestion?.rags.overall, suggestion?.reasoning.overall],
+                ['Schedule', scheduleStatus, setScheduleStatus, suggestion?.rags.schedule, suggestion?.reasoning.schedule],
+                ['Budget', budgetStatus, setBudgetStatus, suggestion?.rags.budget, suggestion?.reasoning.budget],
+                ['Scope', scopeStatus, setScopeStatus, suggestion?.rags.scope, suggestion?.reasoning.scope],
+              ] as [string, 'green' | 'amber' | 'red', (v: 'green' | 'amber' | 'red') => void, string | undefined, string | undefined][]
+            ).map(([label, val, setter, suggested, reason]) => (
               <div key={label} className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">{label}</label>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">{label}</label>
+                  {!existing && suggested && (
+                    <span
+                      className={`text-[10px] px-1 py-0.5 rounded font-medium ${val === suggested ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}
+                      title={reason}
+                    >
+                      {val === suggested ? 'Suggested' : 'Overridden'}
+                    </span>
+                  )}
+                </div>
                 <RagStatusSelect value={val} onChange={setter} />
               </div>
             ))}

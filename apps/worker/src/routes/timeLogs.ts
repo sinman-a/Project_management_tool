@@ -131,7 +131,7 @@ timeLogRoutes.delete('/:id', async (c) => {
   return c.json({ success: true })
 })
 
-timeLogRoutes.post('/:id/approve', requireAny('admin', 'project_manager'), async (c) => {
+timeLogRoutes.post('/:id/approve', requireAny('admin', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
   const now = new Date().toISOString()
@@ -152,7 +152,7 @@ timeLogRoutes.post('/:id/approve', requireAny('admin', 'project_manager'), async
   return c.json(toCamel(timeLog!))
 })
 
-timeLogRoutes.get('/project/:projectId', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+timeLogRoutes.get('/project/:projectId', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const projectId = c.req.param('projectId')
   const approved = c.req.query('approved')
 

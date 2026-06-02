@@ -12,7 +12,7 @@ export interface Env {
   ASANA_REDIRECT_URI: string
 }
 
-export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member'
+export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member' | 'pmo_lead' | 'sponsor' | 'viewer'
 
 export interface JwtPayload {
   sub: string

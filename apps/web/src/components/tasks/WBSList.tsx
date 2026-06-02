@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
 import { TaskForm } from './TaskForm'
 import { TaskLinksPanel } from './TaskLinksPanel'
+import { TaskDetailPanel } from './TaskDetailPanel'
 import type { Task, TaskDependency, CpmFields } from '@/types'
 
 const DEP_SHORT: Record<string, string> = {
@@ -64,9 +65,10 @@ interface TaskRowProps {
   allTasks: Task[]
   dependencies: TaskDependency[]
   cpmData?: Map<string, CpmFields>
+  onOpenDetail: (task: Task) => void
 }
 
-function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmData }: TaskRowProps) {
+function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmData, onOpenDetail }: TaskRowProps) {
   const [expanded, setExpanded] = useState(true)
   const [showAddChild, setShowAddChild] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -100,9 +102,16 @@ function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmD
           <span className="text-xs text-muted-foreground font-mono flex-shrink-0 w-10">{task.wbsCode}</span>
         )}
 
-        <span className={cn('text-sm flex-1 min-w-0 truncate', task.status === 'cancelled' && 'line-through text-muted-foreground')}>
+        <button
+          type="button"
+          className={cn(
+            'text-sm flex-1 min-w-0 truncate text-left hover:text-primary transition-colors',
+            task.status === 'cancelled' && 'line-through text-muted-foreground',
+          )}
+          onClick={() => onOpenDetail(task)}
+        >
           {task.name}
-        </span>
+        </button>
 
         <span className={cn('text-xs px-1.5 py-0.5 rounded-full flex-shrink-0', PRIORITY_COLOR[task.priority])}>
           {task.priority}
@@ -224,7 +233,7 @@ function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmD
       {expanded && hasChildren && (
         <div>
           {task.children!.map((child) => (
-            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} />
+            <TaskRow key={child.id} task={child} depth={depth + 1} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} onOpenDetail={onOpenDetail} />
           ))}
         </div>
       )}
@@ -243,6 +252,7 @@ interface Props {
 export function WBSList({ projectId, tasks, canEdit, dependencies = [], cpmData }: Props) {
   const [showForm, setShowForm] = useState(false)
   const [criticalOnly, setCriticalOnly] = useState(false)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
   const createTask = useCreateTask()
 
   const visibleTasks = criticalOnly && cpmData
@@ -311,10 +321,17 @@ export function WBSList({ projectId, tasks, canEdit, dependencies = [], cpmData 
             <span>Est.</span>
           </div>
           {tree.map((task) => (
-            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} />
+            <TaskRow key={task.id} task={task} depth={0} projectId={projectId} canEdit={canEdit} allTasks={allTasks} dependencies={dependencies} cpmData={cpmData} onOpenDetail={setDetailTask} />
           ))}
         </div>
       )}
+
+      <TaskDetailPanel
+        task={detailTask}
+        projectId={projectId}
+        canEdit={canEdit}
+        onClose={() => setDetailTask(null)}
+      />
     </div>
   )
 }

@@ -6,19 +6,19 @@ import { requireAny } from '../middleware/rbac'
 const riskSchema = z.object({
   projectId: z.string().uuid(),
   title: z.string().min(1).max(200),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   category: z.string().min(1).max(50).default('Technical'),
   probability: z.number().int().min(1).max(5),
   impact: z.number().int().min(1).max(5),
-  ownerId: z.string().uuid().optional(),
+  ownerId: z.string().uuid().nullish(),
   status: z.enum(['identified', 'analyzing', 'mitigating', 'closed', 'accepted', 'occurred']).default('identified'),
-  responseStrategy: z.enum(['avoid', 'transfer', 'mitigate', 'accept']).optional(),
-  mitigationActions: z.string().optional(),
-  contingencyPlan: z.string().optional(),
-  triggerIndicators: z.string().optional(),
+  responseStrategy: z.enum(['avoid', 'transfer', 'mitigate', 'accept']).nullish(),
+  mitigationActions: z.string().nullish(),
+  contingencyPlan: z.string().nullish(),
+  triggerIndicators: z.string().nullish(),
   dateIdentified: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dateLastReviewed: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  nextReviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateLastReviewed: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  nextReviewDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
 })
 
 function scoreBand(score: number): string {
@@ -115,7 +115,7 @@ riskRoutes.get('/', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-riskRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+riskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const parsed = riskSchema.safeParse(body)
@@ -157,7 +157,7 @@ riskRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager'), 
   return c.json(toCamel(risk!), 201)
 })
 
-riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
 
@@ -224,7 +224,7 @@ riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manager
   return c.json(toCamel(updated!))
 })
 
-riskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+riskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const id = c.req.param('id')
   await c.env.DB.prepare(
     `UPDATE risks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`,

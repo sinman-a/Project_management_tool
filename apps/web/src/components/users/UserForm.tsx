@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import type { User } from '@/types'
 
-const roles = ['admin', 'program_manager', 'project_manager', 'team_member'] as const
+const roles = ['admin', 'program_manager', 'pmo_lead', 'project_manager', 'team_member', 'sponsor', 'viewer'] as const
 
 const createSchema = z.object({
   email: z.string().email('Valid email required'),
@@ -33,8 +33,11 @@ interface UserFormProps {
 const roleLabels: Record<string, string> = {
   admin: 'Admin',
   program_manager: 'Program Manager',
+  pmo_lead: 'PMO Lead',
   project_manager: 'Project Manager',
   team_member: 'Team Member',
+  sponsor: 'Sponsor',
+  viewer: 'Viewer',
 }
 
 export function UserForm({ user, onSubmit, isPending, onCancel }: UserFormProps) {

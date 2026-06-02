@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member'
+export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member' | 'pmo_lead' | 'sponsor' | 'viewer'
 
 export type RagStatus = 'green' | 'amber' | 'red'
 
@@ -340,4 +340,250 @@ export interface RiskHeatmapCell {
   probability: number
   impact: number
   count: number
+}
+
+// ============================================================
+// Cost Estimation
+// ============================================================
+
+export interface CostEstimationGrade {
+  id: string
+  estimationId: string
+  name: string
+  ratePerDay: number
+  costType: 'capex' | 'opex'
+  position: number
+}
+
+export interface CostEstimationRow {
+  id: string
+  estimationId: string
+  stage: string
+  workDescription: string
+  position: number
+  cells: Record<string, number>  // gradeId → days
+}
+
+export interface CostEstimationSummaryGrade {
+  gradeId: string
+  gradeName: string
+  ratePerDay: number
+  costType: 'capex' | 'opex'
+  totalDays: number
+  totalCost: number
+}
+
+export interface CostEstimation {
+  id: string
+  projectId: string
+  name: string
+  notes: string | null
+  currency: string
+  isActive: boolean
+  createdAt: string
+  grades: CostEstimationGrade[]
+  rows: CostEstimationRow[]
+  summary: {
+    byGrade: CostEstimationSummaryGrade[]
+    totalDays: number
+    totalCapex: number
+    totalOpex: number
+    grandTotal: number
+  }
+}
+
+export interface CostEstimationListItem {
+  id: string
+  projectId: string
+  name: string
+  notes: string | null
+  currency: string
+  isActive: boolean
+  createdAt: string
+}
+
+// ============================================================
+// Comments + Activity
+// ============================================================
+
+export interface Comment {
+  id: string
+  orgId: string
+  entityType: 'project' | 'task' | 'status_report' | 'risk' | 'idea'
+  entityId: string
+  parentCommentId: string | null
+  body: string
+  authorId: string
+  authorName: string
+  authorEmail: string
+  isPinned: boolean
+  editedAt: string | null
+  deletedAt: string | null
+  createdAt: string
+}
+
+export interface ActivityEvent {
+  id: string
+  orgId: string
+  entityType: string
+  entityId: string
+  eventType: string
+  actorId: string
+  actorName: string
+  payload: Record<string, unknown>
+  occurredAt: string
+}
+
+// ============================================================
+// Notifications
+// ============================================================
+
+export interface Notification {
+  id: string
+  orgId: string
+  recipientId: string
+  type: string
+  entityType: string | null
+  entityId: string | null
+  actorId: string | null
+  actorName: string | null
+  payload: Record<string, unknown>
+  readAt: string | null
+  createdAt: string
+}
+
+// ============================================================
+// Baselines + EVM
+// ============================================================
+
+export interface Baseline {
+  id: string
+  projectId: string
+  name: string
+  notes: string | null
+  lockedAt: string
+  lockedBy: string
+  lockedByName: string | null
+  isActive: boolean
+  totalBudget: number
+  totalCapex: number
+  totalOpex: number
+  plannedStart: string | null
+  plannedFinish: string | null
+}
+
+export interface BaselineTask {
+  id: string
+  baselineId: string
+  taskId: string
+  taskNameSnapshot: string
+  plannedStart: string | null
+  plannedFinish: string | null
+  plannedDurationDays: number
+  plannedEstimateHours: number
+  plannedBudget: number
+}
+
+export interface EVMResult {
+  ev: number
+  pv: number
+  ac: number
+  sv: number
+  cv: number
+  spi: number
+  cpi: number
+  band: 'green' | 'amber' | 'red'
+  hasBaseline: boolean
+}
+
+// ============================================================
+// Status Report extensions
+// ============================================================
+
+export interface RAGSuggestion {
+  rags: { overall: RagStatus; schedule: RagStatus; budget: RagStatus; scope: RagStatus }
+  reasoning: { overall: string; schedule: string; budget: string; scope: string }
+  ruleVersion: string
+}
+
+// ============================================================
+// Capacity
+// ============================================================
+
+export interface CapacityWeek {
+  week: string
+  allocated: number
+  capacity: number
+  utilisation: number
+  band: 'empty' | 'low' | 'light' | 'good' | 'amber' | 'red'
+  projects: { name: string; hours: number }[]
+}
+
+export interface CapacityResource {
+  resourceId: string
+  resourceName: string
+  capacity: number
+  role: string | null
+  weeks: CapacityWeek[]
+}
+
+export interface CapacityHeatmap {
+  weeks: string[]
+  resources: CapacityResource[]
+  aggregation: string
+}
+
+// ============================================================
+// Ideas
+// ============================================================
+
+export type IdeaStatus =
+  | 'draft' | 'submitted' | 'under_review'
+  | 'approved' | 'rejected' | 'on_hold' | 'converted_to_project'
+
+export interface Idea {
+  id: string
+  orgId: string
+  title: string
+  problemStatement: string
+  proposedSolution: string | null
+  expectedValueEur: number | null
+  estimatedCostEur: number | null
+  estimatedEffortWeeks: number | null
+  reach: number | null
+  impact: number | null
+  confidence: number | null
+  effort: number | null
+  riceScore: number
+  status: IdeaStatus
+  submitterId: string
+  submitterName: string | null
+  decisionNotes: string | null
+  decidedBy: string | null
+  decidedByName: string | null
+  decidedAt: string | null
+  convertedProjectId: string | null
+  archivedAt: string | null
+  createdAt: string
+  updatedAt: string
+  themes?: StrategicTheme[]
+  approvals?: IdeaApproval[]
+}
+
+export interface IdeaApproval {
+  id: string
+  ideaId: string
+  approverId: string
+  approverName: string
+  decision: 'approve' | 'reject' | 'request_changes'
+  comments: string | null
+  decidedAt: string
+}
+
+export interface StrategicTheme {
+  id: string
+  orgId: string
+  name: string
+  colour: string | null
+  isActive: boolean
 }

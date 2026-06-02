@@ -47,6 +47,7 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
   const [dateIdentified, setDateIdentified] = useState(today)
   const [dateLastReviewed, setDateLastReviewed] = useState('')
   const [nextReviewDate, setNextReviewDate] = useState('')
+  const [errors, setErrors] = useState<{ title?: string; api?: string }>({})
 
   useEffect(() => {
     if (risk) {
@@ -80,14 +81,29 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
       setDateLastReviewed('')
       setNextReviewDate('')
     }
+    setErrors({})
   }, [risk, open])
 
   const score = probability * impact
   const { band, cls: bandCls } = SCORE_BAND(score)
 
+  function validate() {
+    const errs: { title?: string } = {}
+    if (!title.trim()) errs.title = 'Title is required'
+    return errs
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) return
+    const errs = validate()
+    if (Object.keys(errs).length) {
+      setErrors(errs)
+      return
+    }
+    setErrors({})
+
+    const onError = (err: unknown) =>
+      setErrors({ api: (err as { message?: string })?.message ?? 'Failed to save risk. Please try again.' })
 
     const payload = {
       title: title.trim(),
@@ -101,16 +117,15 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
       contingencyPlan: contingency || null,
       triggerIndicators: triggers || null,
       ownerId: ownerId || null,
-      ownerName: null,
       dateIdentified,
       dateLastReviewed: dateLastReviewed || null,
       nextReviewDate: nextReviewDate || null,
     }
 
     if (risk) {
-      updateRisk.mutate({ id: risk.id, ...payload }, { onSuccess: onClose })
+      updateRisk.mutate({ id: risk.id, ...payload }, { onSuccess: onClose, onError })
     } else if (projectId) {
-      createRisk.mutate({ projectId, ...payload }, { onSuccess: onClose })
+      createRisk.mutate({ projectId, ...payload }, { onSuccess: onClose, onError })
     }
   }
 
@@ -155,12 +170,20 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
             <div className="space-y-1">
               <label className="text-sm font-medium">Title *</label>
               <input
-                required
-                className="w-full text-sm border rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                className={cn(
+                  'w-full text-sm border rounded px-3 py-1.5 focus:outline-none focus:ring-1',
+                  errors.title ? 'border-red-500 focus:ring-red-500' : 'focus:ring-ring',
+                )}
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  if (errors.title) setErrors((p) => ({ ...p, title: undefined }))
+                }}
                 disabled={!canEdit}
               />
+              {errors.title && (
+                <p className="text-xs text-red-500 mt-0.5">{errors.title}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -360,6 +383,13 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
             </div>
           </section>
         </form>
+
+        {/* API error banner */}
+        {errors.api && (
+          <p className="text-xs text-red-600 px-5 py-2 bg-red-50 border-t border-red-200">
+            {errors.api}
+          </p>
+        )}
 
         {/* Footer */}
         {canEdit && (

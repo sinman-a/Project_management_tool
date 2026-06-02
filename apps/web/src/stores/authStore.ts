@@ -10,6 +10,7 @@ interface AuthState {
   canManageBudget: () => boolean
   canApproveTimeLogs: () => boolean
   canCreateProjects: () => boolean
+  isReadOnly: () => boolean
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -24,9 +25,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return user !== null && roles.includes(user.role)
   },
 
-  canManageBudget: () => get().hasRole(['admin', 'program_manager']),
+  canManageBudget: () => get().hasRole(['admin', 'program_manager', 'pmo_lead']),
 
-  canApproveTimeLogs: () => get().hasRole(['admin', 'project_manager']),
+  canApproveTimeLogs: () => get().hasRole(['admin', 'project_manager', 'pmo_lead']),
 
-  canCreateProjects: () => get().hasRole(['admin', 'program_manager']),
+  canCreateProjects: () => get().hasRole(['admin', 'program_manager', 'pmo_lead']),
+
+  isReadOnly: () => get().hasRole(['sponsor', 'viewer']),
 }))

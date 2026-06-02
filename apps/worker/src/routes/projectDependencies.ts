@@ -26,7 +26,7 @@ projectDependencyRoutes.get('/:programId/project-dependencies', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-projectDependencyRoutes.post('/:programId/project-dependencies', requireAny('admin', 'program_manager'), async (c) => {
+projectDependencyRoutes.post('/:programId/project-dependencies', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const parsed = depSchema.safeParse(body)
@@ -44,7 +44,7 @@ projectDependencyRoutes.post('/:programId/project-dependencies', requireAny('adm
   return c.json({ id, projectId, dependsOnId, dependencyType, lagDays }, 201)
 })
 
-projectDependencyRoutes.delete('/:programId/project-dependencies/:depId', requireAny('admin', 'program_manager'), async (c) => {
+projectDependencyRoutes.delete('/:programId/project-dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   await c.env.DB.prepare('DELETE FROM project_dependencies WHERE id = ?')
     .bind(c.req.param('depId')).run()
   return c.json({ success: true })

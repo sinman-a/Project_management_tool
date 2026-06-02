@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { ExportButton } from '@/components/ui/ExportButton'
 import { useRisks, useRiskHeatmap } from '@/hooks/useRisks'
 import { RiskHeatmap } from './RiskHeatmap'
 import { RiskList } from './RiskList'
@@ -114,12 +115,19 @@ export function RiskRegister({ projectId, programId, canEdit = false }: Props) {
           )}
         </div>
 
-        {canEdit && (
-          <Button size="sm" onClick={openNew}>
-            <Plus className="w-3 h-3 mr-1" />
-            Add Risk
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {projectId && (
+            <ExportButton options={[
+              { label: 'Export XLSX', path: `/projects/${projectId}/export/risks` },
+            ]} />
+          )}
+          {canEdit && (
+            <Button size="sm" onClick={openNew}>
+              <Plus className="w-3 h-3 mr-1" />
+              Add Risk
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Content */}

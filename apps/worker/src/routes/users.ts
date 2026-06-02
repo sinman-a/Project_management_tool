@@ -4,23 +4,25 @@ import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { hashPassword } from '../utils/password'
 
+const ROLES = ['admin', 'program_manager', 'pmo_lead', 'project_manager', 'team_member', 'sponsor', 'viewer'] as const
+
 const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(2).max(100),
-  role: z.enum(['admin', 'program_manager', 'project_manager', 'team_member']),
+  role: z.enum(ROLES),
   password: z.string().min(8),
 })
 
 const updateUserSchema = z.object({
   fullName: z.string().min(2).max(100).optional(),
-  role: z.enum(['admin', 'program_manager', 'project_manager', 'team_member']).optional(),
+  role: z.enum(ROLES).optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8).optional(),
 })
 
 export const userRoutes = new Hono<HonoContext>()
 
-userRoutes.get('/', requireAny('admin', 'program_manager'), async (c) => {
+userRoutes.get('/', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const { results } = await c.env.DB.prepare(
     'SELECT id, email, full_name, role, is_active, created_at FROM users WHERE org_id = ? ORDER BY full_name ASC',
@@ -31,7 +33,7 @@ userRoutes.get('/', requireAny('admin', 'program_manager'), async (c) => {
   return c.json(results.map(toCamel))
 })
 
-userRoutes.get('/:id', requireAny('admin', 'program_manager'), async (c) => {
+userRoutes.get('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const caller = c.get('user')
   const { id } = c.req.param()
 

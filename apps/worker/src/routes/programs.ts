@@ -43,7 +43,7 @@ programRoutes.get('/:id', async (c) => {
   return c.json(toCamel(program))
 })
 
-programRoutes.post('/', requireAny('admin', 'program_manager'), async (c) => {
+programRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const parsed = programSchema.safeParse(body)
@@ -63,7 +63,7 @@ programRoutes.post('/', requireAny('admin', 'program_manager'), async (c) => {
   return c.json(toCamel(program!), 201)
 })
 
-programRoutes.patch('/:id', requireAny('admin', 'program_manager'), async (c) => {
+programRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
   const program = await c.env.DB.prepare('SELECT * FROM programs WHERE id = ? AND org_id = ?')
@@ -94,7 +94,7 @@ programRoutes.patch('/:id', requireAny('admin', 'program_manager'), async (c) =>
   return c.json(toCamel(updated!))
 })
 
-programRoutes.delete('/:id', requireAny('admin', 'program_manager'), async (c) => {
+programRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
   const program = await c.env.DB.prepare('SELECT id, owner_id FROM programs WHERE id = ? AND org_id = ?')

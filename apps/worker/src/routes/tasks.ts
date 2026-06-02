@@ -57,7 +57,7 @@ taskRoutes.get('/', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-taskRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+taskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const parsed = taskSchema.safeParse(body)
@@ -139,7 +139,7 @@ taskRoutes.patch('/:id', async (c) => {
   return c.json({ updated: toCamel(updated!), cascade: cascade.map(toCamel) })
 })
 
-taskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+taskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const id = c.req.param('id')
   await c.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run()
   return c.json({ success: true })
@@ -156,7 +156,7 @@ taskRoutes.get('/:id/dependencies', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const taskId = c.req.param('id')
   const body = await c.req.json()
   const parsed = depSchema.safeParse(body)
@@ -173,7 +173,7 @@ taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pro
   return c.json({ id, taskId, ...parsed.data }, 201)
 })
 
-taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const depId = c.req.param('depId')
   const body = await c.req.json()
   const schema = z.object({
@@ -196,7 +196,7 @@ taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manage
   return c.json(toCamel(dep!))
 })
 
-taskRoutes.delete('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+taskRoutes.delete('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   await c.env.DB.prepare('DELETE FROM task_dependencies WHERE id = ?').bind(c.req.param('depId')).run()
   return c.json({ success: true })
 })

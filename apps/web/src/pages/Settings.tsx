@@ -3,6 +3,7 @@ import { UserPlus, Pencil, ShieldCheck, DollarSign, Users, Star, Plus, X, Toggle
 import { useUsers, useCreateUser, useUpdateUser } from '@/hooks/useUsers'
 import { useOrgSettings, useUpdateOrgSettings } from '@/hooks/useOrg'
 import { useRiskCategories, useCreateRiskCategory, useDeleteRiskCategory } from '@/hooks/useRiskCategories'
+import { useStrategicThemes, useCreateTheme, useDeleteTheme } from '@/hooks/useIdeas'
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
 import { ImportSection } from '@/components/settings/ImportSection'
@@ -24,15 +25,21 @@ const DEFAULT_SENIORITY = ['Junior', 'Middle', 'Senior', 'Tech Lead']
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline' | 'green' | 'amber'> = {
   admin: 'default',
   program_manager: 'green',
+  pmo_lead: 'green',
   project_manager: 'amber',
   team_member: 'secondary',
+  sponsor: 'outline',
+  viewer: 'outline',
 }
 
 const roleLabel: Record<string, string> = {
   admin: 'Admin',
   program_manager: 'Program Manager',
+  pmo_lead: 'PMO Lead',
   project_manager: 'Project Manager',
   team_member: 'Team Member',
+  sponsor: 'Sponsor',
+  viewer: 'Viewer',
 }
 
 function TagList({
@@ -112,6 +119,10 @@ export function Settings() {
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<User | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newThemeName, setNewThemeName] = useState('')
+  const { data: strategicThemes = [] } = useStrategicThemes()
+  const createTheme = useCreateTheme()
+  const deleteTheme = useDeleteTheme()
 
   const customRoles = org?.settings?.customRoles ?? []
   const customSeniority = org?.settings?.customSeniority ?? []
@@ -358,6 +369,66 @@ export function Settings() {
                 variant="outline"
                 disabled={!newCategoryName.trim() || createRiskCategory.isPending}
                 onClick={() => createRiskCategory.mutate(newCategoryName.trim(), { onSuccess: () => setNewCategoryName('') })}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Strategic Themes */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              <Star className="inline-block w-4 h-4 mr-2 text-primary" />
+              Strategic Themes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Used to categorise ideas in the pipeline.</p>
+            <div className="flex flex-wrap gap-2">
+              {strategicThemes.map((t) => (
+                <span key={t.id} className="inline-flex items-center gap-1 text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
+                  {t.name}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete theme "${t.name}"?`)) {
+                        deleteTheme.mutate(t.id, {
+                          onError: (err: unknown) => {
+                            const msg = (err as { message?: string })?.message ?? ''
+                            if (msg.includes('THEME_IN_USE')) alert('Theme is in use by one or more ideas.')
+                          },
+                        })
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {strategicThemes.length === 0 && <p className="text-xs text-muted-foreground">No themes yet.</p>}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <input
+                className="input-field flex-1"
+                placeholder="New theme name…"
+                value={newThemeName}
+                onChange={(e) => setNewThemeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newThemeName.trim()) {
+                    e.preventDefault()
+                    createTheme.mutate({ name: newThemeName.trim() }, { onSuccess: () => setNewThemeName('') })
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!newThemeName.trim() || createTheme.isPending}
+                onClick={() => createTheme.mutate({ name: newThemeName.trim() }, { onSuccess: () => setNewThemeName('') })}
               >
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add
               </Button>

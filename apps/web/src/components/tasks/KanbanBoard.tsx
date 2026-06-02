@@ -1,20 +1,15 @@
 import { useState, useRef } from 'react'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, Settings2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useCreateTask, useUpdateTask } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
+import { useProjectBoardColumns } from '@/hooks/useBoardColumns'
 import { TaskForm } from './TaskForm'
+import { BoardColumnEditor } from './BoardColumnEditor'
+import { TaskDetailPanel } from './TaskDetailPanel'
 import type { Task, TaskStatus, TaskType, TaskPriority } from '@/types'
-
-const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
-  { status: 'backlog', label: 'Backlog', color: 'border-t-gray-300' },
-  { status: 'todo', label: 'To Do', color: 'border-t-blue-400' },
-  { status: 'in_progress', label: 'In Progress', color: 'border-t-indigo-500' },
-  { status: 'review', label: 'Review', color: 'border-t-purple-500' },
-  { status: 'done', label: 'Done', color: 'border-t-green-500' },
-]
 
 const PRIORITY_DOT: Record<string, string> = {
   critical: 'bg-red-500',
@@ -87,13 +82,11 @@ function FilterBar({
     onFiltersChange({ search: '', priorities: new Set(), types: new Set(), assignedTo: '' })
   }
 
-  // Only show assignees that appear in the current tasks
   const assigneeIds = [...new Set(tasks.flatMap((t) => t.assignedTo ? [t.assignedTo] : []))]
   const assignees = users.filter((u) => assigneeIds.includes(u.id))
 
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-muted/30 rounded-lg border">
-      {/* Search */}
       <div className="relative flex-shrink-0">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
         <input
@@ -114,7 +107,6 @@ function FilterBar({
 
       <div className="w-px h-5 bg-border flex-shrink-0" />
 
-      {/* Priority pills */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <span className="text-xs text-muted-foreground mr-0.5">Priority:</span>
         {ALL_PRIORITIES.map((p) => (
@@ -136,7 +128,6 @@ function FilterBar({
 
       <div className="w-px h-5 bg-border flex-shrink-0" />
 
-      {/* Type pills */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <span className="text-xs text-muted-foreground mr-0.5">Type:</span>
         {ALL_TYPES.map((t) => (
@@ -155,7 +146,6 @@ function FilterBar({
         ))}
       </div>
 
-      {/* Assignee */}
       {assignees.length > 0 && (
         <>
           <div className="w-px h-5 bg-border flex-shrink-0" />
@@ -175,7 +165,6 @@ function FilterBar({
         </>
       )}
 
-      {/* Clear */}
       {hasActiveFilters && (
         <Button size="sm" variant="ghost" className="h-7 text-xs ml-auto" onClick={clearAll}>
           <X className="w-3 h-3 mr-1" /> Clear
@@ -187,35 +176,14 @@ function FilterBar({
 
 interface TaskCardProps {
   task: Task
-  projectId: string
   canEdit: boolean
   isDragging: boolean
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
+  onCardClick: (task: Task) => void
 }
 
-function TaskCard({ task, projectId, canEdit, isDragging, onDragStart, onDragEnd }: TaskCardProps) {
-  const [editing, setEditing] = useState(false)
-  const updateTask = useUpdateTask()
-
-  if (editing) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="pt-3 pb-3">
-          <TaskForm
-            projectId={projectId}
-            task={task}
-            isPending={updateTask.isPending}
-            onCancel={() => setEditing(false)}
-            onSubmit={(data) =>
-              updateTask.mutate({ id: task.id, ...data }, { onSuccess: () => setEditing(false) })
-            }
-          />
-        </CardContent>
-      </Card>
-    )
-  }
-
+function TaskCard({ task, canEdit, isDragging, onDragStart, onDragEnd, onCardClick }: TaskCardProps) {
   return (
     <Card
       draggable={canEdit}
@@ -225,10 +193,10 @@ function TaskCard({ task, projectId, canEdit, isDragging, onDragStart, onDragEnd
         onDragStart(task.id)
       }}
       onDragEnd={onDragEnd}
-      onClick={() => canEdit && setEditing(true)}
+      onClick={() => onCardClick(task)}
       className={cn(
         'transition-all select-none',
-        canEdit ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-default',
+        canEdit ? 'cursor-pointer hover:shadow-md hover:border-primary/30' : 'cursor-default',
         isDragging && 'opacity-40 scale-95 shadow-none',
       )}
     >
@@ -238,7 +206,7 @@ function TaskCard({ task, projectId, canEdit, isDragging, onDragStart, onDragEnd
           <p className="text-sm leading-snug flex-1">{task.name}</p>
         </div>
         <div className="flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {TYPE_LABEL[task.type] ?? task.type}
             </span>
@@ -261,11 +229,10 @@ function TaskCard({ task, projectId, canEdit, isDragging, onDragStart, onDragEnd
 }
 
 interface ColumnProps {
-  status: TaskStatus
+  statusKey: TaskStatus
   label: string
-  colorClass: string
+  color: string
   tasks: Task[]
-  projectId: string
   canEdit: boolean
   isDragOver: boolean
   draggedTaskId: string | null
@@ -274,12 +241,13 @@ interface ColumnProps {
   onDrop: (targetStatus: TaskStatus) => void
   onDragOverColumn: (status: TaskStatus) => void
   onDragLeaveColumn: () => void
+  onCardClick: (task: Task) => void
 }
 
 function KanbanColumn({
-  status, label, colorClass, tasks, projectId, canEdit,
+  statusKey, label, color, tasks, canEdit,
   isDragOver, draggedTaskId,
-  onTaskDragStart, onTaskDragEnd, onDrop, onDragOverColumn, onDragLeaveColumn,
+  onTaskDragStart, onTaskDragEnd, onDrop, onDragOverColumn, onDragLeaveColumn, onCardClick,
 }: ColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null)
 
@@ -288,14 +256,14 @@ function KanbanColumn({
       <div
         ref={columnRef}
         className={cn(
-          'bg-card border rounded-lg border-t-4 flex flex-col h-full transition-colors',
-          colorClass,
+          'bg-card border border-t-4 rounded-lg flex flex-col h-full transition-colors',
           isDragOver && 'bg-primary/5 border-primary/30 ring-2 ring-primary/40 ring-inset',
         )}
+        style={{ borderTopColor: color }}
         onDragOver={(e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
-          onDragOverColumn(status)
+          onDragOverColumn(statusKey)
         }}
         onDragLeave={(e) => {
           if (!columnRef.current?.contains(e.relatedTarget as Node)) {
@@ -304,11 +272,14 @@ function KanbanColumn({
         }}
         onDrop={(e) => {
           e.preventDefault()
-          onDrop(status)
+          onDrop(statusKey)
         }}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b">
-          <span className="text-sm font-medium">{label}</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <span className="text-sm font-medium">{label}</span>
+          </div>
           <span className="text-xs text-muted-foreground bg-muted rounded-full px-2">{tasks.length}</span>
         </div>
 
@@ -325,11 +296,11 @@ function KanbanColumn({
             <TaskCard
               key={task.id}
               task={task}
-              projectId={projectId}
               canEdit={canEdit}
               isDragging={draggedTaskId === task.id}
               onDragStart={onTaskDragStart}
               onDragEnd={onTaskDragEnd}
+              onCardClick={onCardClick}
             />
           ))}
           {isDragOver && tasks.length > 0 && (
@@ -338,7 +309,6 @@ function KanbanColumn({
             </div>
           )}
         </div>
-
       </div>
     </div>
   )
@@ -355,14 +325,20 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<TaskStatus | null>(null)
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | null>(null)
+  const [showEditor, setShowEditor] = useState(false)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [filters, setFilters] = useState<Filters>({
     search: '',
     priorities: new Set(),
     types: new Set(),
     assignedTo: '',
   })
+
   const updateTask = useUpdateTask()
   const createTask = useCreateTask()
+  const { data: boardColumns = [] } = useProjectBoardColumns(projectId)
+
+  const visibleColumns = boardColumns.filter((c) => c.isVisible)
 
   const filteredTasks = applyFilters(tasks, filters)
   const isFiltering = filters.search || filters.priorities.size > 0 || filters.types.size > 0 || filters.assignedTo
@@ -384,11 +360,26 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
           <span>{tasks.length} task{tasks.length !== 1 ? 's' : ''}</span>
           <span>{tasks.filter((t) => t.status === 'done').length} done</span>
         </div>
-        {canEdit && (
-          <Button size="sm" variant="outline" onClick={() => setNewTaskStatus('todo')}>
-            <Plus className="w-3 h-3 mr-1" /> Add Task
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <button
+              type="button"
+              title="Board settings"
+              className={cn(
+                'p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors',
+                showEditor && 'bg-muted text-foreground',
+              )}
+              onClick={() => setShowEditor((v) => !v)}
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+          )}
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={() => setNewTaskStatus('todo')}>
+              <Plus className="w-3 h-3 mr-1" /> Add Task
+            </Button>
+          )}
+        </div>
       </div>
 
       <FilterBar filters={filters} onFiltersChange={setFilters} tasks={tasks} />
@@ -400,27 +391,44 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
       )}
 
       <div className="flex gap-3 overflow-x-auto pb-2">
-        {COLUMNS.map(({ status, label, color }) => (
+        {visibleColumns.map((col) => (
           <KanbanColumn
-            key={status}
-            status={status}
-            label={label}
-            colorClass={color}
-            tasks={filteredTasks.filter((t) => t.status === status)}
-            projectId={projectId}
+            key={col.id}
+            statusKey={col.statusKey as TaskStatus}
+            label={col.label}
+            color={col.color}
+            tasks={filteredTasks.filter((t) => t.status === col.statusKey)}
             canEdit={canEdit}
-            isDragOver={dropTarget === status}
+            isDragOver={dropTarget === col.statusKey}
             draggedTaskId={draggedTaskId}
             onTaskDragStart={(id) => setDraggedTaskId(id)}
             onTaskDragEnd={() => { setDraggedTaskId(null); setDropTarget(null) }}
             onDrop={handleDrop}
             onDragOverColumn={(s) => setDropTarget(s)}
             onDragLeaveColumn={() => setDropTarget(null)}
+            onCardClick={(task) => setDetailTask(task)}
           />
         ))}
       </div>
 
-      {/* Task creation modal */}
+      {/* Board column editor */}
+      {showEditor && (
+        <BoardColumnEditor
+          projectId={projectId}
+          canEdit={canEdit}
+          onClose={() => setShowEditor(false)}
+        />
+      )}
+
+      {/* Task detail panel */}
+      <TaskDetailPanel
+        task={detailTask}
+        projectId={projectId}
+        canEdit={canEdit}
+        onClose={() => setDetailTask(null)}
+      />
+
+      {/* New task modal */}
       {newTaskStatus && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
@@ -432,12 +440,9 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold">
-                New Task — {COLUMNS.find((c) => c.status === newTaskStatus)?.label}
+                New Task — {visibleColumns.find((c) => c.statusKey === newTaskStatus)?.label ?? newTaskStatus}
               </h3>
-              <button
-                onClick={() => setNewTaskStatus(null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
+              <button onClick={() => setNewTaskStatus(null)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>

@@ -19,6 +19,21 @@ import { taskLinkRoutes } from './routes/taskLinks'
 import { riskRoutes } from './routes/risks'
 import { riskCategoryRoutes } from './routes/riskCategories'
 import { projectDependencyRoutes } from './routes/projectDependencies'
+import { commentRoutes, activityRoutes } from './routes/comments'
+import { notificationRoutes } from './routes/notifications'
+import { baselineRoutes, baselineSubRoutes } from './routes/baselines'
+import { reportScheduleRoutes } from './routes/reports'
+import { exportRoutes } from './routes/exports'
+import { capacityRoutes } from './routes/capacity'
+import { ideaRoutes, themeRoutes } from './routes/ideas'
+import { boardColumnRoutes, boardColumnSubRoutes } from './routes/boardColumns'
+import {
+  costEstimationSubRoutes,
+  costEstimationRoutes,
+  gradeRoutes,
+  rowRoutes,
+  cellRoutes,
+} from './routes/costEstimations'
 
 const app = new Hono<HonoContext>()
 
@@ -47,6 +62,23 @@ api.route('/task-links', taskLinkRoutes)
 api.route('/risks', riskRoutes)
 api.route('/risk-categories', riskCategoryRoutes)
 api.route('/programs', projectDependencyRoutes)
+api.route('/comments', commentRoutes)
+api.route('/', activityRoutes)
+api.route('/notifications', notificationRoutes)
+api.route('/baselines', baselineRoutes)
+api.route('/projects', baselineSubRoutes)
+api.route('/status-report-schedules', reportScheduleRoutes)
+api.route('/', exportRoutes)
+api.route('/capacity', capacityRoutes)
+api.route('/ideas', ideaRoutes)
+api.route('/strategic-themes', themeRoutes)
+api.route('/board-columns', boardColumnRoutes)
+api.route('/projects', boardColumnSubRoutes)
+api.route('/projects', costEstimationSubRoutes)
+api.route('/cost-estimations', costEstimationRoutes)
+api.route('/cost-estimation-grades', gradeRoutes)
+api.route('/cost-estimation-rows', rowRoutes)
+api.route('/cost-estimation-cells', cellRoutes)
 
 app.route('/api', api)
 

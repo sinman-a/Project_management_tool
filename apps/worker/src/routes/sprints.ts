@@ -31,7 +31,7 @@ sprintRoutes.get('/', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-sprintRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+sprintRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const body = await c.req.json()
   const parsed = sprintSchema.safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
@@ -48,7 +48,7 @@ sprintRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager')
   return c.json(toCamel(sprint!), 201)
 })
 
-sprintRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+sprintRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   const allowed = ['name', 'goal', 'start_date', 'end_date', 'status', 'velocity']
@@ -67,7 +67,7 @@ sprintRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manag
   return c.json(toCamel(updated!))
 })
 
-sprintRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+sprintRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   await c.env.DB.prepare('DELETE FROM sprints WHERE id = ?').bind(c.req.param('id')).run()
   return c.json({ success: true })
 })

@@ -83,3 +83,18 @@ export function useDeleteReport() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reports'] }),
   })
 }
+
+export interface RAGSuggestion {
+  rags: { overall: 'green' | 'amber' | 'red'; schedule: 'green' | 'amber' | 'red'; budget: 'green' | 'amber' | 'red'; scope: 'green' | 'amber' | 'red' }
+  reasoning: { overall: string; schedule: string; budget: string; scope: string }
+  ruleVersion: string
+}
+
+export function useRAGSuggestion(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['rag-suggestion', projectId],
+    queryFn: () => api.get<RAGSuggestion>(`/projects/${projectId}/status-reports/suggestion`),
+    enabled: !!projectId,
+    staleTime: 300_000,
+  })
+}

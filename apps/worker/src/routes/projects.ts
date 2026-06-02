@@ -4,6 +4,7 @@ import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { recalculateProjectBudget } from '../services/budgetService'
 import { computeCPM, CycleError } from '../services/cpmService'
+import { suggestRAGs } from '../services/suggestionService'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -89,7 +90,7 @@ projectRoutes.get('/:id', async (c) => {
   return c.json(result)
 })
 
-projectRoutes.post('/', requireAny('admin', 'program_manager'), async (c) => {
+projectRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const parsed = projectSchema.safeParse(body)
@@ -109,7 +110,7 @@ projectRoutes.post('/', requireAny('admin', 'program_manager'), async (c) => {
   return c.json(toCamel(project!), 201)
 })
 
-projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ? AND org_id = ?')
@@ -144,7 +145,7 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_mana
   return c.json(toCamel(updated!))
 })
 
-projectRoutes.delete('/:id', requireAny('admin', 'program_manager'), async (c) => {
+projectRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
   const project = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ? AND org_id = ?')
@@ -162,7 +163,7 @@ projectRoutes.get('/:id/budget/history', async (c) => {
   return c.json(results.map(toCamel))
 })
 
-projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const projectId = c.req.param('id')
   try {
     const result = await recalculateProjectBudget(c.env.DB, c.env.KV_CACHE, projectId)
@@ -254,6 +255,17 @@ projectRoutes.get('/:id/schedule', async (c) => {
       return c.json({ message: 'Cycle detected in task dependencies', cycle: e.cycle }, 409)
     }
     throw e
+  }
+})
+
+// GET /:id/status-reports/suggestion — auto-suggest RAGs
+projectRoutes.get('/:id/status-reports/suggestion', async (c) => {
+  const projectId = c.req.param('id')
+  try {
+    const suggestion = await suggestRAGs(c.env.DB, projectId)
+    return c.json(suggestion)
+  } catch {
+    return c.json({ message: 'Could not compute suggestion' }, 500)
   }
 })
 

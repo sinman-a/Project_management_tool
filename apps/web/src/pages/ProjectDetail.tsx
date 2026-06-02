@@ -25,6 +25,13 @@ import { TimeLogList } from '@/components/time/TimeLogList'
 import { StatusReportList } from '@/components/reports/StatusReportList'
 import { RiskRegister } from '@/components/risks/RiskRegister'
 import { TopRisksWidget } from '@/components/risks/TopRisksWidget'
+import { ExportButton } from '@/components/ui/ExportButton'
+import { EVMTiles } from '@/components/baseline/EVMTiles'
+import { CostEstimationMatrix } from '@/components/financials/CostEstimationMatrix'
+import { StaffCostView } from '@/components/financials/StaffCostView'
+import { BaselinePanel } from '@/components/baseline/BaselinePanel'
+import { CommentThread } from '@/components/collaboration/CommentThread'
+import { ActivityFeed } from '@/components/collaboration/ActivityFeed'
 import { formatDate } from '@/lib/utils'
 import { useState, useMemo } from 'react'
 import { ProjectForm } from '@/components/projects/ProjectForm'
@@ -32,7 +39,7 @@ import type { ProjectStatus, CpmFields, TaskDependency } from '@/types'
 
 const statusFlow: ProjectStatus[] = ['planning', 'active', 'on_hold', 'completed', 'cancelled']
 
-type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks'
+type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks' | 'baselines' | 'discussion' | 'activity' | 'cost' | 'staffcost'
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -102,11 +109,16 @@ export function ProjectDetail() {
     { key: 'wbs', label: `WBS (${tasks.length})` },
     { key: 'rice', label: 'RICE' },
     { key: 'sprints', label: `Sprint (${sprints.length})` },
-    { key: 'kanban', label: 'Scrum Board' },
+    { key: 'kanban', label: 'Board' },
     { key: 'gantt', label: 'Gantt' },
     { key: 'time', label: 'Time Logs' },
     { key: 'reports', label: 'Reports' },
     { key: 'risks', label: 'Risks', badge: hasCriticalOpenRisk },
+    { key: 'cost', label: 'Cost Estimation' },
+    { key: 'staffcost', label: 'Staff Cost' },
+    { key: 'baselines', label: 'Baselines' },
+    { key: 'discussion', label: 'Discussion' },
+    { key: 'activity', label: 'Activity' },
   ]
 
   return (
@@ -213,6 +225,9 @@ export function ProjectDetail() {
         </Card>
       </div>
 
+      {/* EVM Tiles */}
+      <EVMTiles projectId={id!} />
+
       {/* Top Risks */}
       <TopRisksWidget projectId={id!} onRiskClick={() => setActiveTab('risks')} />
 
@@ -282,7 +297,14 @@ export function ProjectDetail() {
         </div>
 
         {activeTab === 'wbs' && (
-          <WBSList projectId={id!} tasks={tasks} canEdit={canEdit} dependencies={taskDeps} cpmData={cpmMap.size > 0 ? cpmMap : undefined} />
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <ExportButton options={[
+                { label: 'Export WBS (XLSX)', path: `/projects/${id}/export/wbs` },
+              ]} />
+            </div>
+            <WBSList projectId={id!} tasks={tasks} canEdit={canEdit} dependencies={taskDeps} cpmData={cpmMap.size > 0 ? cpmMap : undefined} />
+          </div>
         )}
         {activeTab === 'kanban' && sprints.length > 0 && (
           <ScrumBoard projectId={id!} sprints={sprints} tasks={tasks} canEdit={canEdit} />
@@ -322,13 +344,40 @@ export function ProjectDetail() {
           <RiceMatrix projectId={id!} canEdit={canEdit} />
         )}
         {activeTab === 'time' && (
-          <TimeLogList projectId={id!} />
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <ExportButton options={[
+                { label: 'Export All (XLSX)', path: `/projects/${id}/export/time-logs` },
+                { label: 'Export Approved (XLSX)', path: `/projects/${id}/export/time-logs?status=approved` },
+              ]} />
+            </div>
+            <TimeLogList projectId={id!} />
+          </div>
         )}
         {activeTab === 'reports' && (
           <StatusReportList projectId={id!} />
         )}
         {activeTab === 'risks' && (
           <RiskRegister projectId={id!} canEdit={canEdit} />
+        )}
+        {activeTab === 'cost' && (
+          <CostEstimationMatrix projectId={id!} canEdit={canEdit} />
+        )}
+        {activeTab === 'staffcost' && (
+          <StaffCostView projectId={id!} />
+        )}
+        {activeTab === 'baselines' && (
+          <BaselinePanel projectId={id!} canEdit={canEdit} />
+        )}
+        {activeTab === 'discussion' && (
+          <div className="max-w-2xl">
+            <CommentThread entityType="project" entityId={id!} canModerate={canEdit} />
+          </div>
+        )}
+        {activeTab === 'activity' && (
+          <div className="max-w-2xl">
+            <ActivityFeed projectId={id!} />
+          </div>
         )}
       </div>
     </div>

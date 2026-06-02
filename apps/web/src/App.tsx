@@ -19,6 +19,8 @@ import { ProjectDetail } from '@/pages/ProjectDetail'
 import { Resources } from '@/pages/Resources'
 import { Timesheet } from '@/pages/Timesheet'
 import { Reports } from '@/pages/Reports'
+import { Ideas } from '@/pages/Ideas'
+import { Notifications } from '@/pages/Notifications'
 import { Landing } from '@/pages/Landing'
 
 function OrgCurrencyLoader() {
@@ -90,6 +92,8 @@ export default function App() {
       <Route path="/resources" element={<ProtectedRoute><Resources /></ProtectedRoute>} />
       <Route path="/timesheet" element={<ProtectedRoute><Timesheet /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+      <Route path="/ideas" element={<ProtectedRoute><Ideas /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

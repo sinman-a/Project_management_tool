@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { suggestRAGs } from '../services/suggestionService'
 
 function toCamel(row: Record<string, unknown>) {
   const out: Record<string, unknown> = {}
@@ -82,7 +83,7 @@ reportRoutes.get('/:id', async (c) => {
   return c.json(toCamel(row as Record<string, unknown>))
 })
 
-reportRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+reportRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
   const data = reportSchema.parse(body)
@@ -115,7 +116,7 @@ reportRoutes.post('/', requireAny('admin', 'program_manager', 'project_manager')
   return c.json(toCamel(row as Record<string, unknown>), 201)
 })
 
-reportRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+reportRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const { id } = c.req.param()
   const existing = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first() as Record<string, unknown> | null
@@ -154,7 +155,7 @@ reportRoutes.patch('/:id', requireAny('admin', 'program_manager', 'project_manag
   return c.json(toCamel(row as Record<string, unknown>))
 })
 
-reportRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_manager'), async (c) => {
+reportRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const { id } = c.req.param()
   const existing = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first() as Record<string, unknown> | null
@@ -163,3 +164,83 @@ reportRoutes.delete('/:id', requireAny('admin', 'program_manager', 'project_mana
   await c.env.DB.prepare('DELETE FROM status_reports WHERE id = ?').bind(id).run()
   return c.json({ success: true })
 })
+
+// Publish a draft report
+reportRoutes.post('/:id/publish', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const existing = await c.env.DB.prepare('SELECT author_id FROM status_reports WHERE id = ?')
+    .bind(id).first<{ author_id: string }>()
+  if (!existing) return c.json({ message: 'Not found' }, 404)
+  if (user.role !== 'admin' && existing.author_id !== user.sub) return c.json({ message: 'Forbidden' }, 403)
+
+  await c.env.DB.prepare('UPDATE status_reports SET is_draft = 0 WHERE id = ?').bind(id).run()
+  const row = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first()
+  return c.json(toCamel(row as Record<string, unknown>))
+})
+
+// ==========================================
+// Status Report Schedules
+// ==========================================
+
+const scheduleSchema = z.object({
+  scopeType: z.enum(['project', 'program']),
+  scopeId: z.string().uuid(),
+  cadence: z.enum(['off', 'weekly', 'biweekly', 'monthly']),
+  dayOfWeek: z.number().int().min(0).max(6).default(1),
+  enabled: z.boolean().default(true),
+})
+
+export const reportScheduleRoutes = new Hono<HonoContext>()
+
+reportScheduleRoutes.get('/', async (c) => {
+  const user = c.get('user')
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM status_report_schedules WHERE org_id = ? ORDER BY scope_type ASC',
+  ).bind(user.orgId).all()
+  return c.json(results.map(toCamel))
+})
+
+reportScheduleRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json()
+  const parsed = scheduleSchema.safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+
+  const id = crypto.randomUUID()
+  const d = parsed.data
+  await c.env.DB.prepare(`
+    INSERT INTO status_report_schedules (id, org_id, scope_type, scope_id, cadence, day_of_week, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, user.orgId, d.scopeType, d.scopeId, d.cadence, d.dayOfWeek, d.enabled ? 1 : 0).run()
+
+  const row = await c.env.DB.prepare('SELECT * FROM status_report_schedules WHERE id = ?').bind(id).first()
+  return c.json(toCamel(row!), 201)
+})
+
+reportScheduleRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const parsed = scheduleSchema.partial().safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+
+  const d = parsed.data
+  const updates: [string, unknown][] = []
+  if (d.cadence !== undefined) updates.push(['cadence', d.cadence])
+  if (d.dayOfWeek !== undefined) updates.push(['day_of_week', d.dayOfWeek])
+  if (d.enabled !== undefined) updates.push(['enabled', d.enabled ? 1 : 0])
+
+  if (updates.length === 0) return c.json({ message: 'No fields' }, 400)
+
+  const setClauses = updates.map(([k]) => `${k} = ?`).join(', ')
+  await c.env.DB.prepare(`UPDATE status_report_schedules SET ${setClauses} WHERE id = ?`)
+    .bind(...updates.map(([, v]) => v), id).run()
+
+  const row = await c.env.DB.prepare('SELECT * FROM status_report_schedules WHERE id = ?').bind(id).first()
+  return c.json(toCamel(row!))
+})
+
+// GET /projects/:id/status-reports/suggestion (mounted separately in projects routes)
+export async function getStatusReportSuggestion(db: D1Database, projectId: string) {
+  return suggestRAGs(db, projectId)
+}
