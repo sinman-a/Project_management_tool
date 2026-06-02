@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg } from '../middleware/ownership'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -9,6 +11,38 @@ function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(obj).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()), v]),
   )
+}
+
+/** Verify a cost estimation belongs to the caller's org (estimation → project → org). */
+async function estimationInOrg(db: D1Database, estimationId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM cost_estimations ce
+    JOIN projects p ON p.id = ce.project_id
+    WHERE ce.id = ? AND p.org_id = ?
+  `).bind(estimationId, orgId).first()
+  return !!row
+}
+
+/** Verify a grade belongs to the caller's org (grade → estimation → project → org). */
+async function gradeInOrg(db: D1Database, gradeId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM cost_estimation_grades g
+    JOIN cost_estimations ce ON ce.id = g.estimation_id
+    JOIN projects p ON p.id = ce.project_id
+    WHERE g.id = ? AND p.org_id = ?
+  `).bind(gradeId, orgId).first()
+  return !!row
+}
+
+/** Verify a row belongs to the caller's org (row → estimation → project → org). */
+async function rowInOrg(db: D1Database, rowId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM cost_estimation_rows r
+    JOIN cost_estimations ce ON ce.id = r.estimation_id
+    JOIN projects p ON p.id = ce.project_id
+    WHERE r.id = ? AND p.org_id = ?
+  `).bind(rowId, orgId).first()
+  return !!row
 }
 
 type GradeRow = {
@@ -57,7 +91,9 @@ function buildSummary(
 export const costEstimationSubRoutes = new Hono<HonoContext>()
 
 costEstimationSubRoutes.get('/:id/cost-estimations', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM cost_estimations WHERE project_id = ? ORDER BY created_at ASC',
   ).bind(projectId).all()
@@ -70,6 +106,7 @@ costEstimationSubRoutes.post(
   async (c) => {
     const user = c.get('user')
     const projectId = c.req.param('id')
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json().catch(() => ({}))
     const parsed = z.object({
       name: z.string().min(1).max(200).default('Estimation v1'),
@@ -93,9 +130,14 @@ costEstimationSubRoutes.post(
 export const costEstimationRoutes = new Hono<HonoContext>()
 
 costEstimationRoutes.get('/:id', async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
 
-  const est = await c.env.DB.prepare('SELECT * FROM cost_estimations WHERE id = ?').bind(id).first()
+  const est = await c.env.DB.prepare(`
+    SELECT ce.* FROM cost_estimations ce
+    JOIN projects p ON p.id = ce.project_id
+    WHERE ce.id = ? AND p.org_id = ?
+  `).bind(id, user.orgId).first()
   if (!est) return c.json({ message: 'Not found' }, 404)
 
   const { results: grades } = await c.env.DB.prepare(
@@ -138,7 +180,9 @@ costEstimationRoutes.patch(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await estimationInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = z.object({
       name: z.string().min(1).max(200).optional(),
@@ -165,7 +209,9 @@ costEstimationRoutes.delete(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await estimationInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     await c.env.DB.prepare('DELETE FROM cost_estimations WHERE id = ?').bind(id).run()
     return c.json({ success: true })
   },
@@ -177,7 +223,9 @@ costEstimationRoutes.post(
   '/:id/grades',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const estimationId = c.req.param('id')
+    if (!(await estimationInOrg(c.env.DB, estimationId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = z.object({
       name: z.string().min(1).max(100),
@@ -212,7 +260,9 @@ gradeRoutes.patch(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await gradeInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = z.object({
       name: z.string().min(1).max(100).optional(),
@@ -242,7 +292,9 @@ gradeRoutes.delete(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await gradeInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     await c.env.DB.prepare('DELETE FROM cost_estimation_grades WHERE id = ?').bind(id).run()
     return c.json({ success: true })
   },
@@ -254,7 +306,9 @@ costEstimationRoutes.post(
   '/:id/rows',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const estimationId = c.req.param('id')
+    if (!(await estimationInOrg(c.env.DB, estimationId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json().catch(() => ({}))
     const parsed = z.object({
       stage: z.string().max(200).default(''),
@@ -287,7 +341,9 @@ rowRoutes.patch(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await rowInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = z.object({
       stage: z.string().max(200).optional(),
@@ -315,7 +371,9 @@ rowRoutes.delete(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await rowInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     await c.env.DB.prepare('DELETE FROM cost_estimation_rows WHERE id = ?').bind(id).run()
     return c.json({ success: true })
   },
@@ -338,6 +396,20 @@ cellRoutes.put(
     if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
 
     const { rowId, gradeId, days } = parsed.data
+    const user = c.get('user')
+
+    // Both row and grade must chain up to a project in the caller's org,
+    // and must belong to the SAME estimation.
+    const valid = await c.env.DB.prepare(`
+      SELECT 1
+      FROM cost_estimation_rows r
+      JOIN cost_estimation_grades g ON g.estimation_id = r.estimation_id
+      JOIN cost_estimations ce ON ce.id = r.estimation_id
+      JOIN projects p ON p.id = ce.project_id
+      WHERE r.id = ? AND g.id = ? AND p.org_id = ?
+    `).bind(rowId, gradeId, user.orgId).first()
+    if (!valid) return c.json({ message: 'Not found' }, 404)
+
     const id = crypto.randomUUID()
 
     await c.env.DB.prepare(`

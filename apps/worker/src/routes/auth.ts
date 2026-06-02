@@ -43,7 +43,36 @@ function setCookieHeader(token: string, expiry: number, isProduction: boolean): 
   return `ppm_token=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${expiry}`
 }
 
+// ── Brute-force rate limiting (KV-backed) ────────────────────────────────────
+const MAX_ATTEMPTS = 10
+const WINDOW_SECONDS = 15 * 60
+
+function clientIp(c: { req: { header: (k: string) => string | undefined } }): string {
+  return c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
+}
+
+/** Returns true if the caller is over the attempt limit. */
+async function isRateLimited(kv: KVNamespace, key: string): Promise<boolean> {
+  const raw = await kv.get(key)
+  return raw !== null && parseInt(raw, 10) >= MAX_ATTEMPTS
+}
+
+async function recordFailure(kv: KVNamespace, key: string): Promise<void> {
+  const raw = await kv.get(key)
+  const next = (raw ? parseInt(raw, 10) : 0) + 1
+  await kv.put(key, String(next), { expirationTtl: WINDOW_SECONDS })
+}
+
+async function clearFailures(kv: KVNamespace, key: string): Promise<void> {
+  await kv.delete(key)
+}
+
 authRoutes.post('/login', async (c) => {
+  const rlKey = `login_attempts:${clientIp(c)}`
+  if (await isRateLimited(c.env.KV_CACHE, rlKey)) {
+    return c.json({ message: 'Too many login attempts. Please try again later.' }, 429)
+  }
+
   const body = await c.req.json()
   const parsed = loginSchema.safeParse(body)
   if (!parsed.success) {
@@ -58,6 +87,7 @@ authRoutes.post('/login', async (c) => {
     .first<{ id: string; email: string; full_name: string; role: string; org_id: string; password_hash: string }>()
 
   if (!user) {
+    await recordFailure(c.env.KV_CACHE, rlKey)
     return c.json({ message: 'Invalid email or password' }, 401)
   }
 
@@ -67,8 +97,12 @@ authRoutes.post('/login', async (c) => {
 
   const valid = await verifyPassword(password, user.password_hash)
   if (!valid) {
+    await recordFailure(c.env.KV_CACHE, rlKey)
     return c.json({ message: 'Invalid email or password' }, 401)
   }
+
+  // Successful login — clear the attempt counter
+  await clearFailures(c.env.KV_CACHE, rlKey)
 
   const expiry = parseInt(c.env.JWT_EXPIRY, 10)
   const token = await issueToken(c.env.JWT_SECRET, c.env.JWT_EXPIRY, user.id, user.email, user.role, user.org_id)
@@ -110,13 +144,22 @@ authRoutes.get('/me', authMiddleware, async (c) => {
   })
 })
 
-// First-run setup — works only when admin has placeholder password
+// First-run setup — works only when no real account exists yet
 authRoutes.post('/setup', async (c) => {
+  // Abort entirely if ANY real (non-placeholder) active user already exists.
+  // Prevents re-trigger and races once the system is in use.
+  const realUsers = await c.env.DB.prepare(
+    "SELECT COUNT(*) as cnt FROM users WHERE password_hash != 'CHANGE_ME_BEFORE_DEPLOY' AND is_active = 1",
+  ).first<{ cnt: number }>()
+  if (realUsers && realUsers.cnt > 0) {
+    return c.json({ message: 'Setup already completed' }, 403)
+  }
+
   const admin = await c.env.DB.prepare(
-    "SELECT id, org_id, password_hash FROM users WHERE role = 'admin' LIMIT 1",
+    "SELECT id, org_id, password_hash FROM users WHERE role = 'admin' AND password_hash = 'CHANGE_ME_BEFORE_DEPLOY' LIMIT 1",
   ).first<{ id: string; org_id: string; password_hash: string }>()
 
-  if (!admin || admin.password_hash !== 'CHANGE_ME_BEFORE_DEPLOY') {
+  if (!admin) {
     return c.json({ message: 'Setup already completed or not available' }, 403)
   }
 

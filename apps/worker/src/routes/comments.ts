@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
+import { requireAny } from '../middleware/rbac'
 import { createNotification } from '../services/notificationService'
 
 const commentSchema = z.object({
@@ -98,8 +99,8 @@ commentRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
 
   const comment = await c.env.DB.prepare(
-    'SELECT id, author_id FROM comments WHERE id = ? AND deleted_at IS NULL',
-  ).bind(id).first<{ id: string; author_id: string }>()
+    'SELECT id, author_id FROM comments WHERE id = ? AND org_id = ? AND deleted_at IS NULL',
+  ).bind(id, user.orgId).first<{ id: string; author_id: string }>()
 
   if (!comment) return c.json({ message: 'Not found' }, 404)
   if (comment.author_id !== user.sub) return c.json({ message: 'Forbidden' }, 403)
@@ -126,8 +127,8 @@ commentRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id')
 
   const comment = await c.env.DB.prepare(
-    'SELECT id, author_id FROM comments WHERE id = ? AND deleted_at IS NULL',
-  ).bind(id).first<{ id: string; author_id: string }>()
+    'SELECT id, author_id FROM comments WHERE id = ? AND org_id = ? AND deleted_at IS NULL',
+  ).bind(id, user.orgId).first<{ id: string; author_id: string }>()
 
   if (!comment) return c.json({ message: 'Not found' }, 404)
   if (comment.author_id !== user.sub && user.role !== 'admin') {
@@ -141,23 +142,24 @@ commentRoutes.delete('/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// POST /comments/:id/pin
-commentRoutes.post('/:id/pin', async (c) => {
+// POST /comments/:id/pin — moderators only (pinning is a thread-moderation action)
+commentRoutes.post('/:id/pin', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
 
   const comment = await c.env.DB.prepare(
-    'SELECT id, entity_type, entity_id, is_pinned FROM comments WHERE id = ? AND deleted_at IS NULL',
-  ).bind(id).first<{ id: string; entity_type: string; entity_id: string; is_pinned: number }>()
+    'SELECT id, entity_type, entity_id, is_pinned FROM comments WHERE id = ? AND org_id = ? AND deleted_at IS NULL',
+  ).bind(id, user.orgId).first<{ id: string; entity_type: string; entity_id: string; is_pinned: number }>()
 
   if (!comment) return c.json({ message: 'Not found' }, 404)
 
   const newPinned = comment.is_pinned ? 0 : 1
 
   if (newPinned === 1) {
-    // Unpin any existing pinned comment in thread
+    // Unpin any existing pinned comment in thread (org-scoped)
     await c.env.DB.prepare(
-      'UPDATE comments SET is_pinned = 0 WHERE entity_type = ? AND entity_id = ? AND is_pinned = 1',
-    ).bind(comment.entity_type, comment.entity_id).run()
+      'UPDATE comments SET is_pinned = 0 WHERE entity_type = ? AND entity_id = ? AND org_id = ? AND is_pinned = 1',
+    ).bind(comment.entity_type, comment.entity_id, user.orgId).run()
   }
 
   await c.env.DB.prepare('UPDATE comments SET is_pinned = ? WHERE id = ?').bind(newPinned, id).run()

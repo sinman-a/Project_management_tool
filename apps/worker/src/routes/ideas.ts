@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { programInOrg } from '../middleware/ownership'
 import { createNotification } from '../services/notificationService'
 
 const ideaSchema = z.object({
@@ -134,8 +135,8 @@ ideaRoutes.patch('/:id', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
 
-  const idea = await c.env.DB.prepare('SELECT submitter_id, status FROM ideas WHERE id = ? AND archived_at IS NULL')
-    .bind(id).first<{ submitter_id: string; status: string }>()
+  const idea = await c.env.DB.prepare('SELECT submitter_id, status FROM ideas WHERE id = ? AND org_id = ? AND archived_at IS NULL')
+    .bind(id, user.orgId).first<{ submitter_id: string; status: string }>()
   if (!idea) return c.json({ message: 'Not found' }, 404)
 
   const frozenStatuses = ['converted_to_project']
@@ -186,8 +187,8 @@ ideaRoutes.delete('/:id', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
 
-  const idea = await c.env.DB.prepare('SELECT submitter_id FROM ideas WHERE id = ?')
-    .bind(id).first<{ submitter_id: string }>()
+  const idea = await c.env.DB.prepare('SELECT submitter_id FROM ideas WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first<{ submitter_id: string }>()
   if (!idea) return c.json({ message: 'Not found' }, 404)
   if (user.role !== 'admin' && idea.submitter_id !== user.sub) return c.json({ message: 'Forbidden' }, 403)
 
@@ -197,7 +198,11 @@ ideaRoutes.delete('/:id', async (c) => {
 
 // POST /:id/transition
 ideaRoutes.post('/:id/transition', requireAny('admin', 'pmo_lead', 'program_manager'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM ideas WHERE id = ? AND org_id = ? AND archived_at IS NULL')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const parsed = z.object({
     toStatus: z.enum(['draft', 'submitted', 'under_review', 'approved', 'rejected', 'on_hold']),
@@ -217,6 +222,9 @@ ideaRoutes.post('/:id/transition', requireAny('admin', 'pmo_lead', 'program_mana
 ideaRoutes.post('/:id/approve', requireAny('admin', 'pmo_lead', 'program_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM ideas WHERE id = ? AND org_id = ? AND archived_at IS NULL')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json().catch(() => ({}))
   const comments = (body as { comments?: string }).comments ?? null
 
@@ -252,6 +260,9 @@ ideaRoutes.post('/:id/approve', requireAny('admin', 'pmo_lead', 'program_manager
 ideaRoutes.post('/:id/reject', requireAny('admin', 'pmo_lead', 'program_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM ideas WHERE id = ? AND org_id = ? AND archived_at IS NULL')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json().catch(() => ({}))
   const notes = (body as { notes?: string }).notes ?? null
 
@@ -287,8 +298,8 @@ ideaRoutes.post('/:id/convert', requireAny('admin', 'pmo_lead', 'program_manager
   const user = c.get('user')
   const id = c.req.param('id')
 
-  const idea = await c.env.DB.prepare('SELECT * FROM ideas WHERE id = ? AND status = ? AND archived_at IS NULL')
-    .bind(id, 'approved').first<Record<string, unknown>>()
+  const idea = await c.env.DB.prepare('SELECT * FROM ideas WHERE id = ? AND org_id = ? AND status = ? AND archived_at IS NULL')
+    .bind(id, user.orgId, 'approved').first<Record<string, unknown>>()
   if (!idea) return c.json({ message: 'Idea not found or not approved' }, 404)
 
   const body = await c.req.json()
@@ -304,6 +315,17 @@ ideaRoutes.post('/:id/convert', requireAny('admin', 'pmo_lead', 'program_manager
 
   const projectId = crypto.randomUUID()
   const d = parsed.data
+
+  // Validate program belongs to caller's org (if provided)
+  if (d.programId && !(await programInOrg(c.env.DB, d.programId, user.orgId))) {
+    return c.json({ message: 'Invalid program' }, 400)
+  }
+  // Validate manager belongs to caller's org (if provided)
+  if (d.managerId) {
+    const mgr = await c.env.DB.prepare('SELECT 1 FROM users WHERE id = ? AND org_id = ?')
+      .bind(d.managerId, user.orgId).first()
+    if (!mgr) return c.json({ message: 'Invalid manager' }, 400)
+  }
 
   // Transactional: create project + update idea atomically
   try {
@@ -372,7 +394,11 @@ themeRoutes.post('/', requireAny('admin', 'pmo_lead', 'program_manager'), async 
 })
 
 themeRoutes.patch('/:id', requireAny('admin', 'pmo_lead', 'program_manager'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM strategic_themes WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const parsed = themeSchema.partial().safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
@@ -385,19 +411,23 @@ themeRoutes.patch('/:id', requireAny('admin', 'pmo_lead', 'program_manager'), as
   if (updates.length === 0) return c.json({ message: 'No fields' }, 400)
 
   const setClauses = updates.map(([k]) => `${k} = ?`).join(', ')
-  await c.env.DB.prepare(`UPDATE strategic_themes SET ${setClauses} WHERE id = ?`)
-    .bind(...updates.map(([, v]) => v), id).run()
+  await c.env.DB.prepare(`UPDATE strategic_themes SET ${setClauses} WHERE id = ? AND org_id = ?`)
+    .bind(...updates.map(([, v]) => v), id, user.orgId).run()
 
   const theme = await c.env.DB.prepare('SELECT * FROM strategic_themes WHERE id = ?').bind(id).first()
   return c.json(toCamel(theme!))
 })
 
 themeRoutes.delete('/:id', requireAny('admin', 'pmo_lead'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM strategic_themes WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const inUse = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM idea_themes WHERE theme_id = ?')
     .bind(id).first<{ cnt: number }>()
   if ((inUse?.cnt ?? 0) > 0) return c.json({ message: 'THEME_IN_USE' }, 409)
 
-  await c.env.DB.prepare('DELETE FROM strategic_themes WHERE id = ?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM strategic_themes WHERE id = ? AND org_id = ?').bind(id, user.orgId).run()
   return c.json({ success: true })
 })

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg } from '../middleware/ownership'
 import { computeEVM } from '../services/evmService'
 import { writeActivity } from './comments'
 
@@ -11,7 +12,9 @@ const baselineRoutes = new Hono<HonoContext>()
 export const baselineSubRoutes = new Hono<HonoContext>()
 
 baselineSubRoutes.get('/:id/baselines', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT b.*, u.full_name as locked_by_name
     FROM baselines b
@@ -36,10 +39,10 @@ baselineSubRoutes.post('/:id/baselines',
 
     if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
 
-    // Get project budget
+    // Get project budget (org-scoped)
     const project = await c.env.DB.prepare(
-      'SELECT budget_capex, budget_opex, start_date, end_date FROM projects WHERE id = ?',
-    ).bind(projectId).first<{ budget_capex: number; budget_opex: number; start_date: string; end_date: string }>()
+      'SELECT budget_capex, budget_opex, start_date, end_date FROM projects WHERE id = ? AND org_id = ?',
+    ).bind(projectId, user.orgId).first<{ budget_capex: number; budget_opex: number; start_date: string; end_date: string }>()
 
     if (!project) return c.json({ message: 'Project not found' }, 404)
 
@@ -114,13 +117,17 @@ baselineSubRoutes.post('/:id/baselines',
 )
 
 baselineSubRoutes.get('/:id/evm', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const result = await computeEVM(c.env.DB, projectId)
   return c.json(result)
 })
 
 baselineSubRoutes.get('/:id/evm/history', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   // Return weekly EVM snapshots for last 12 weeks
   const { results: snapshots } = await c.env.DB.prepare(`
@@ -140,7 +147,9 @@ baselineSubRoutes.get('/:id/evm/history', async (c) => {
 baselineSubRoutes.patch('/:id/ev-config',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const projectId = c.req.param('id')
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = z.object({
       method: z.enum(['zero_hundred', 'fifty_fifty', 'percent_complete']).optional(),
@@ -178,12 +187,15 @@ baselineSubRoutes.patch('/:id/ev-config',
 
 // GET /baselines/:id — baseline detail
 baselineRoutes.get('/:id', async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
   const baseline = await c.env.DB.prepare(`
     SELECT b.*, u.full_name as locked_by_name
-    FROM baselines b LEFT JOIN users u ON u.id = b.locked_by
-    WHERE b.id = ?
-  `).bind(id).first()
+    FROM baselines b
+    JOIN projects p ON p.id = b.project_id
+    LEFT JOIN users u ON u.id = b.locked_by
+    WHERE b.id = ? AND p.org_id = ?
+  `).bind(id, user.orgId).first()
   if (!baseline) return c.json({ message: 'Not found' }, 404)
 
   const { results: tasks } = await c.env.DB.prepare(

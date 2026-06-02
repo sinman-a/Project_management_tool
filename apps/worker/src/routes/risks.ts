@@ -1,7 +1,19 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg, programInOrg } from '../middleware/ownership'
+
+/** Verify a risk belongs to the caller's org (risk → project → org). */
+async function riskInOrg(db: D1Database, riskId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM risks r
+    JOIN projects p ON p.id = r.project_id
+    WHERE r.id = ? AND p.org_id = ?
+  `).bind(riskId, orgId).first()
+  return !!row
+}
 
 const riskSchema = z.object({
   projectId: z.string().uuid(),
@@ -32,8 +44,12 @@ export const riskRoutes = new Hono<HonoContext>()
 
 // Static routes BEFORE /:id to avoid conflicts
 riskRoutes.get('/heatmap', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.query('projectId')
   const programId = c.req.query('programId')
+
+  if (programId && !(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (projectId && !(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   let query: string
   let params: string[]
@@ -60,9 +76,11 @@ riskRoutes.get('/heatmap', async (c) => {
 })
 
 riskRoutes.get('/top', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.query('projectId')
   const n = Math.min(parseInt(c.req.query('n') ?? '3', 10), 10)
   if (!projectId) return c.json({ message: 'projectId required' }, 400)
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(`
     SELECT r.*, u.full_name as owner_name
@@ -77,6 +95,7 @@ riskRoutes.get('/top', async (c) => {
 })
 
 riskRoutes.get('/', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.query('projectId')
   const programId = c.req.query('programId')
   const status = c.req.query('status')
@@ -87,9 +106,11 @@ riskRoutes.get('/', async (c) => {
   const params: unknown[] = []
 
   if (projectId) {
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     where += ' AND r.project_id = ?'
     params.push(projectId)
   } else if (programId) {
+    if (!(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     where += ' AND r.project_id IN (SELECT id FROM projects WHERE program_id = ?)'
     params.push(programId)
   } else {
@@ -122,6 +143,7 @@ riskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
   const d = parsed.data
+  if (!(await projectInOrg(c.env.DB, d.projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const score = d.probability * d.impact
   const band = scoreBand(score)
 
@@ -161,8 +183,11 @@ riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'pro
   const user = c.get('user')
   const id = c.req.param('id')
 
-  const existing = await c.env.DB.prepare('SELECT * FROM risks WHERE id = ? AND deleted_at IS NULL')
-    .bind(id).first<Record<string, unknown>>()
+  const existing = await c.env.DB.prepare(`
+    SELECT r.* FROM risks r
+    JOIN projects p ON p.id = r.project_id
+    WHERE r.id = ? AND p.org_id = ? AND r.deleted_at IS NULL
+  `).bind(id, user.orgId).first<Record<string, unknown>>()
   if (!existing) return c.json({ message: 'Not found' }, 404)
 
   const body = await c.req.json()
@@ -225,7 +250,9 @@ riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'pro
 })
 
 riskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  if (!(await riskInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
   await c.env.DB.prepare(
     `UPDATE risks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`,
   ).bind(id).run()

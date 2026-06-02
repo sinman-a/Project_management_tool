@@ -5,6 +5,7 @@ import { requireAny } from '../middleware/rbac'
 import { recalculateProjectBudget } from '../services/budgetService'
 import { computeCPM, CycleError } from '../services/cpmService'
 import { suggestRAGs } from '../services/suggestionService'
+import { projectInOrg } from '../middleware/ownership'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -156,7 +157,9 @@ projectRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead'),
 })
 
 projectRoutes.get('/:id/budget/history', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM budget_snapshots WHERE project_id = ? ORDER BY snapshot_date ASC LIMIT 60',
   ).bind(projectId).all()
@@ -164,7 +167,9 @@ projectRoutes.get('/:id/budget/history', async (c) => {
 })
 
 projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   try {
     const result = await recalculateProjectBudget(c.env.DB, c.env.KV_CACHE, projectId)
     return c.json(result)
@@ -174,7 +179,9 @@ projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manag
 })
 
 projectRoutes.get('/:id/budget', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const cached = await c.env.KV_CACHE.get(`budget:project:${projectId}:latest`, 'json')
   if (cached) return c.json(cached)
@@ -191,7 +198,9 @@ projectRoutes.get('/:id/budget', async (c) => {
 
 // GET /:id/task-dependencies — all deps for a project (for Gantt + WBS)
 projectRoutes.get('/:id/task-dependencies', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT td.*,
            t1.name as depends_on_name,
@@ -206,7 +215,9 @@ projectRoutes.get('/:id/task-dependencies', async (c) => {
 
 // GET /:id/schedule — CPM-computed schedule for all project tasks
 projectRoutes.get('/:id/schedule', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const { results: taskRows } = await c.env.DB.prepare(
     'SELECT id, estimated_hours, start_date, due_date, status FROM tasks WHERE project_id = ?',
@@ -260,7 +271,11 @@ projectRoutes.get('/:id/schedule', async (c) => {
 
 // GET /:id/status-reports/suggestion — auto-suggest RAGs
 projectRoutes.get('/:id/status-reports/suggestion', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  const owned = await c.env.DB.prepare('SELECT 1 FROM projects WHERE id = ? AND org_id = ?')
+    .bind(projectId, user.orgId).first()
+  if (!owned) return c.json({ message: 'Not found' }, 404)
   try {
     const suggestion = await suggestRAGs(c.env.DB, projectId)
     return c.json(suggestion)

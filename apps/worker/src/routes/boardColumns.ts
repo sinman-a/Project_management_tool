@@ -1,7 +1,19 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg } from '../middleware/ownership'
+
+/** Verify a board column belongs to the caller's org (column → project → org). */
+async function columnInOrg(db: D1Database, columnId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM project_board_columns bc
+    JOIN projects p ON p.id = bc.project_id
+    WHERE bc.id = ? AND p.org_id = ?
+  `).bind(columnId, orgId).first()
+  return !!row
+}
 
 const DEFAULTS = [
   { statusKey: 'backlog',     label: 'Backlog',      color: '#9ca3af', position: 0, isVisible: true },
@@ -25,7 +37,9 @@ export const boardColumnSubRoutes = new Hono<HonoContext>()
 
 // GET /projects/:id/board-columns
 boardColumnSubRoutes.get('/:id/board-columns', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM project_board_columns WHERE project_id = ? ORDER BY position ASC',
@@ -53,7 +67,9 @@ boardColumnSubRoutes.post(
   '/:id/board-columns',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const projectId = c.req.param('id')
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = columnSchema.safeParse(body)
     if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
@@ -78,7 +94,9 @@ boardColumnSubRoutes.post(
   '/:id/board-columns/reset',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const projectId = c.req.param('id')
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     await c.env.DB.prepare(
       'DELETE FROM project_board_columns WHERE project_id = ?',
     ).bind(projectId).run()
@@ -94,7 +112,9 @@ boardColumnRoutes.patch(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await columnInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     const body = await c.req.json()
     const parsed = columnSchema.partial().safeParse(body)
     if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
@@ -127,7 +147,9 @@ boardColumnRoutes.delete(
   '/:id',
   requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'),
   async (c) => {
+    const user = c.get('user')
     const id = c.req.param('id')
+    if (!(await columnInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
     await c.env.DB.prepare('DELETE FROM project_board_columns WHERE id = ?').bind(id).run()
     return c.json({ success: true })
   },

@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg, programInOrg } from '../middleware/ownership'
 import { suggestRAGs } from '../services/suggestionService'
 
 function toCamel(row: Record<string, unknown>) {
@@ -10,6 +12,17 @@ function toCamel(row: Record<string, unknown>) {
     out[k.replace(/_([a-z])/g, (_, l) => l.toUpperCase())] = v
   }
   return out
+}
+
+/** Fetch a status report only if its project or program belongs to the caller's org. */
+async function getReportInOrg(db: D1Database, id: string, orgId: string): Promise<Record<string, unknown> | null> {
+  const row = await db.prepare(`
+    SELECT sr.* FROM status_reports sr
+    LEFT JOIN projects p ON p.id = sr.project_id
+    LEFT JOIN programs pr ON pr.id = sr.program_id
+    WHERE sr.id = ? AND (p.org_id = ? OR pr.org_id = ?)
+  `).bind(id, orgId, orgId).first<Record<string, unknown>>()
+  return row ?? null
 }
 
 const reportSchema = z.object({
@@ -38,12 +51,18 @@ reportRoutes.get('/', async (c) => {
   const params: string[] = []
 
   if (projectId) {
+    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     conditions.push('sr.project_id = ?')
     params.push(projectId)
   } else if (programId) {
+    if (!(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
     conditions.push('sr.program_id = ?')
     params.push(programId)
   }
+
+  // Always constrain results to the caller's org (report's project OR program in org).
+  conditions.push('(p.org_id = ? OR pr.org_id = ?)')
+  params.push(user.orgId, user.orgId)
 
   if (user.role === 'project_manager' && !projectId && !programId) {
     conditions.push('p.manager_id = ?')
@@ -70,6 +89,7 @@ reportRoutes.get('/', async (c) => {
 })
 
 reportRoutes.get('/:id', async (c) => {
+  const user = c.get('user')
   const { id } = c.req.param()
   const row = await c.env.DB.prepare(`
     SELECT sr.*, u.full_name as author_name, p.name as project_name, pr.name as program_name
@@ -77,8 +97,8 @@ reportRoutes.get('/:id', async (c) => {
     LEFT JOIN users u ON u.id = sr.author_id
     LEFT JOIN projects p ON p.id = sr.project_id
     LEFT JOIN programs pr ON pr.id = sr.program_id
-    WHERE sr.id = ?
-  `).bind(id).first()
+    WHERE sr.id = ? AND (p.org_id = ? OR pr.org_id = ?)
+  `).bind(id, user.orgId, user.orgId).first()
   if (!row) return c.json({ message: 'Not found' }, 404)
   return c.json(toCamel(row as Record<string, unknown>))
 })
@@ -86,7 +106,20 @@ reportRoutes.get('/:id', async (c) => {
 reportRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
-  const data = reportSchema.parse(body)
+  const parsed = reportSchema.safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
+  const data = parsed.data
+
+  if (data.projectId && !(await projectInOrg(c.env.DB, data.projectId, user.orgId))) {
+    return c.json({ message: 'Invalid project' }, 400)
+  }
+  if (data.programId && !(await programInOrg(c.env.DB, data.programId, user.orgId))) {
+    return c.json({ message: 'Invalid program' }, 400)
+  }
+  if (!data.projectId && !data.programId) {
+    return c.json({ message: 'projectId or programId required' }, 400)
+  }
+
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
@@ -119,12 +152,14 @@ reportRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'proje
 reportRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const { id } = c.req.param()
-  const existing = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first() as Record<string, unknown> | null
+  const existing = await getReportInOrg(c.env.DB, id, user.orgId)
   if (!existing) return c.json({ message: 'Not found' }, 404)
   if (user.role !== 'admin' && existing['author_id'] !== user.sub) return c.json({ message: 'Forbidden' }, 403)
 
   const body = await c.req.json()
-  const data = reportSchema.partial().parse(body)
+  const parsed = reportSchema.partial().safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
+  const data = parsed.data
   const sets: string[] = []
   const params: (string | null)[] = []
 
@@ -158,7 +193,7 @@ reportRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'p
 reportRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const { id } = c.req.param()
-  const existing = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first() as Record<string, unknown> | null
+  const existing = await getReportInOrg(c.env.DB, id, user.orgId)
   if (!existing) return c.json({ message: 'Not found' }, 404)
   if (user.role !== 'admin' && existing['author_id'] !== user.sub) return c.json({ message: 'Forbidden' }, 403)
   await c.env.DB.prepare('DELETE FROM status_reports WHERE id = ?').bind(id).run()
@@ -169,10 +204,9 @@ reportRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', '
 reportRoutes.post('/:id/publish', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
-  const existing = await c.env.DB.prepare('SELECT author_id FROM status_reports WHERE id = ?')
-    .bind(id).first<{ author_id: string }>()
+  const existing = await getReportInOrg(c.env.DB, id, user.orgId)
   if (!existing) return c.json({ message: 'Not found' }, 404)
-  if (user.role !== 'admin' && existing.author_id !== user.sub) return c.json({ message: 'Forbidden' }, 403)
+  if (user.role !== 'admin' && existing['author_id'] !== user.sub) return c.json({ message: 'Forbidden' }, 403)
 
   await c.env.DB.prepare('UPDATE status_reports SET is_draft = 0 WHERE id = ?').bind(id).run()
   const row = await c.env.DB.prepare('SELECT * FROM status_reports WHERE id = ?').bind(id).first()
@@ -209,6 +243,13 @@ reportScheduleRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'
 
   const id = crypto.randomUUID()
   const d = parsed.data
+
+  // scope target must belong to caller's org
+  const scopeOk = d.scopeType === 'project'
+    ? await projectInOrg(c.env.DB, d.scopeId, user.orgId)
+    : await programInOrg(c.env.DB, d.scopeId, user.orgId)
+  if (!scopeOk) return c.json({ message: 'Invalid scope' }, 400)
+
   await c.env.DB.prepare(`
     INSERT INTO status_report_schedules (id, org_id, scope_type, scope_id, cadence, day_of_week, enabled)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -219,7 +260,11 @@ reportScheduleRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'
 })
 
 reportScheduleRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  const exists = await c.env.DB.prepare('SELECT 1 FROM status_report_schedules WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first()
+  if (!exists) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const parsed = scheduleSchema.partial().safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
@@ -233,8 +278,8 @@ reportScheduleRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_l
   if (updates.length === 0) return c.json({ message: 'No fields' }, 400)
 
   const setClauses = updates.map(([k]) => `${k} = ?`).join(', ')
-  await c.env.DB.prepare(`UPDATE status_report_schedules SET ${setClauses} WHERE id = ?`)
-    .bind(...updates.map(([, v]) => v), id).run()
+  await c.env.DB.prepare(`UPDATE status_report_schedules SET ${setClauses} WHERE id = ? AND org_id = ?`)
+    .bind(...updates.map(([, v]) => v), id, user.orgId).run()
 
   const row = await c.env.DB.prepare('SELECT * FROM status_report_schedules WHERE id = ?').bind(id).first()
   return c.json(toCamel(row!))

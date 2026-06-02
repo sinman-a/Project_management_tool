@@ -82,15 +82,35 @@ userRoutes.patch('/:id', requireAny('admin'), async (c) => {
   const caller = c.get('user')
   const { id } = c.req.param()
 
-  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ? AND org_id = ?')
+  const user = await c.env.DB.prepare('SELECT id, role, is_active FROM users WHERE id = ? AND org_id = ?')
     .bind(id, caller.orgId)
-    .first()
+    .first<{ id: string; role: string; is_active: number }>()
   if (!user) return c.json({ message: 'Not found' }, 404)
 
   const body = await c.req.json()
   const parsed = updateUserSchema.safeParse(body)
   if (!parsed.success) {
     return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
+  }
+
+  const isSelf = id === caller.sub
+  const demotingSelf = isSelf && parsed.data.role !== undefined && parsed.data.role !== 'admin'
+  const deactivatingSelf = isSelf && parsed.data.isActive === false
+  if (demotingSelf || deactivatingSelf) {
+    return c.json({ message: 'You cannot change your own role or deactivate yourself.' }, 400)
+  }
+
+  // Prevent removing the last active admin in the org
+  const removesAdmin =
+    (user.role === 'admin' && parsed.data.role !== undefined && parsed.data.role !== 'admin') ||
+    (user.role === 'admin' && parsed.data.isActive === false)
+  if (removesAdmin) {
+    const adminCount = await c.env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM users WHERE org_id = ? AND role = 'admin' AND is_active = 1",
+    ).bind(caller.orgId).first<{ cnt: number }>()
+    if ((adminCount?.cnt ?? 0) <= 1) {
+      return c.json({ message: 'Cannot remove the last admin in the organization.' }, 400)
+    }
   }
 
   const updates: [string, unknown][] = []

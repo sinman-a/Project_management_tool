@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
+import { projectInOrg } from '../middleware/ownership'
 
 const riceSchema = z.object({
   milestone: z.string().max(300).optional(),
@@ -16,8 +17,10 @@ const riceSchema = z.object({
 export const riceRoutes = new Hono<HonoContext>()
 
 riceRoutes.get('/', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.query('projectId')
   if (!projectId) return c.json({ message: 'projectId required' }, 400)
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(`
     SELECT r.*, u.full_name as created_by_name

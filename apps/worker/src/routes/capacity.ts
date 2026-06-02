@@ -161,6 +161,7 @@ capacityRoutes.get('/heatmap', async (c) => {
 
 // GET /capacity/heatmap/cell?resourceId=&period=YYYY-Www
 capacityRoutes.get('/heatmap/cell', async (c) => {
+  const user = c.get('user')
   const resourceId = c.req.query('resourceId')
   const period = c.req.query('period')
 
@@ -168,15 +169,20 @@ capacityRoutes.get('/heatmap/cell', async (c) => {
     return c.json({ message: 'resourceId and period required' }, 400)
   }
 
-  // Find tasks for resource in that week
+  // Resource must belong to caller's org
+  const owned = await c.env.DB.prepare('SELECT 1 FROM resources WHERE id = ? AND org_id = ?')
+    .bind(resourceId, user.orgId).first()
+  if (!owned) return c.json({ message: 'Not found' }, 404)
+
+  // Find tasks for resource in that week (project must also be in caller's org)
   const { results } = await c.env.DB.prepare(`
     SELECT t.id, t.name, t.start_date, t.due_date, p.name as project_name, ta.allocated_hours
     FROM task_assignments ta
     JOIN tasks t ON t.id = ta.task_id
     JOIN projects p ON p.id = t.project_id
-    WHERE ta.resource_id = ?
+    WHERE ta.resource_id = ? AND p.org_id = ?
     ORDER BY t.start_date ASC
-  `).bind(resourceId).all<{
+  `).bind(resourceId, user.orgId).all<{
     id: string; name: string; start_date: string | null; due_date: string | null
     project_name: string; allocated_hours: number
   }>()

@@ -2,6 +2,27 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { projectInOrg } from '../middleware/ownership'
+
+/** Verify a task belongs to the caller's org (task → project → org). */
+async function taskInOrg(db: D1Database, taskId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id
+    WHERE t.id = ? AND p.org_id = ?
+  `).bind(taskId, orgId).first()
+  return !!row
+}
+
+/** Verify a task dependency belongs to the caller's org (dep → task → project → org). */
+async function depInOrg(db: D1Database, depId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare(`
+    SELECT 1 FROM task_dependencies td
+    JOIN tasks t ON t.id = td.task_id
+    JOIN projects p ON p.id = t.project_id
+    WHERE td.id = ? AND p.org_id = ?
+  `).bind(depId, orgId).first()
+  return !!row
+}
 
 const taskSchema = z.object({
   projectId: z.string().uuid(),
@@ -43,8 +64,10 @@ taskRoutes.get('/assigned', async (c) => {
 })
 
 taskRoutes.get('/', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.query('projectId')
   if (!projectId) return c.json({ message: 'projectId required' }, 400)
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(
     `SELECT t.*, u.full_name as assignee_name
@@ -68,6 +91,7 @@ taskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project
     status, priority, assignedTo, storyPoints, estimatedHours,
     startDate, dueDate, costType, wbsCode,
   } = parsed.data
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
@@ -90,8 +114,10 @@ taskRoutes.patch('/:id', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
 
-  const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
-    .bind(id).first<{ assigned_to: string | null; project_id: string; estimated_hours: number; due_date: string | null }>()
+  const task = await c.env.DB.prepare(`
+    SELECT t.* FROM tasks t JOIN projects p ON p.id = t.project_id
+    WHERE t.id = ? AND p.org_id = ?
+  `).bind(id, user.orgId).first<{ assigned_to: string | null; project_id: string; estimated_hours: number; due_date: string | null }>()
   if (!task) return c.json({ message: 'Not found' }, 404)
 
   if (user.role === 'team_member' && task.assigned_to !== user.sub) {
@@ -113,9 +139,13 @@ taskRoutes.patch('/:id', async (c) => {
 
   if (updates.length === 0) return c.json({ message: 'No valid fields' }, 400)
 
-  // When moving to a different project, clear sprint and parent (they belong to the old project)
+  // When moving to a different project, verify the target project is in the caller's org,
+  // then clear sprint and parent (they belong to the old project)
   const newProjectId = updates.find(([k]) => k === 'project_id')?.[1]
   if (newProjectId && newProjectId !== task.project_id) {
+    if (typeof newProjectId !== 'string' || !(await projectInOrg(c.env.DB, newProjectId, user.orgId))) {
+      return c.json({ message: 'Invalid target project' }, 400)
+    }
     if (!updates.find(([k]) => k === 'sprint_id')) updates.push(['sprint_id', null])
     if (!updates.find(([k]) => k === 'parent_task_id')) updates.push(['parent_task_id', null])
   }
@@ -140,13 +170,17 @@ taskRoutes.patch('/:id', async (c) => {
 })
 
 taskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  if (!(await taskInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run()
   return c.json({ success: true })
 })
 
 taskRoutes.get('/:id/dependencies', async (c) => {
+  const user = c.get('user')
   const id = c.req.param('id')
+  if (!(await taskInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(
     `SELECT td.*, t.name as depends_on_name
      FROM task_dependencies td
@@ -157,12 +191,17 @@ taskRoutes.get('/:id/dependencies', async (c) => {
 })
 
 taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const taskId = c.req.param('id')
   const body = await c.req.json()
   const parsed = depSchema.safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
 
   if (taskId === parsed.data.dependsOnId) return c.json({ message: 'Task cannot depend on itself' }, 400)
+
+  // Both the task and its predecessor must belong to the caller's org
+  if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await taskInOrg(c.env.DB, parsed.data.dependsOnId, user.orgId))) return c.json({ message: 'Invalid dependency' }, 400)
 
   const id = crypto.randomUUID()
   await c.env.DB.prepare(`
@@ -174,7 +213,9 @@ taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pmo
 })
 
 taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
   const depId = c.req.param('depId')
+  if (!(await depInOrg(c.env.DB, depId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const schema = z.object({
     dependencyType: z.enum(['finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish']).optional(),
@@ -197,7 +238,10 @@ taskRoutes.patch('/:id/dependencies/:depId', requireAny('admin', 'program_manage
 })
 
 taskRoutes.delete('/:id/dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
-  await c.env.DB.prepare('DELETE FROM task_dependencies WHERE id = ?').bind(c.req.param('depId')).run()
+  const user = c.get('user')
+  const depId = c.req.param('depId')
+  if (!(await depInOrg(c.env.DB, depId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  await c.env.DB.prepare('DELETE FROM task_dependencies WHERE id = ?').bind(depId).run()
   return c.json({ success: true })
 })
 

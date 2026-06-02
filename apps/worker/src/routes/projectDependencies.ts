@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
+import { programInOrg, projectInOrg } from '../middleware/ownership'
 
 const depSchema = z.object({
   projectId: z.string().uuid(),
@@ -13,7 +14,9 @@ const depSchema = z.object({
 export const projectDependencyRoutes = new Hono<HonoContext>()
 
 projectDependencyRoutes.get('/:programId/project-dependencies', async (c) => {
+  const user = c.get('user')
   const programId = c.req.param('programId')
+  if (!(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT pd.*,
            p1.name as project_name,
@@ -28,12 +31,18 @@ projectDependencyRoutes.get('/:programId/project-dependencies', async (c) => {
 
 projectDependencyRoutes.post('/:programId/project-dependencies', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
   const user = c.get('user')
+  const programId = c.req.param('programId')
+  if (!(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const parsed = depSchema.safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
 
   const { projectId, dependsOnId, dependencyType, lagDays } = parsed.data
   if (projectId === dependsOnId) return c.json({ message: 'Project cannot depend on itself' }, 400)
+
+  // Both projects must belong to the caller's org
+  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Invalid project' }, 400)
+  if (!(await projectInOrg(c.env.DB, dependsOnId, user.orgId))) return c.json({ message: 'Invalid dependency' }, 400)
 
   const id = crypto.randomUUID()
   await c.env.DB.prepare(`
@@ -45,8 +54,16 @@ projectDependencyRoutes.post('/:programId/project-dependencies', requireAny('adm
 })
 
 projectDependencyRoutes.delete('/:programId/project-dependencies/:depId', requireAny('admin', 'program_manager', 'pmo_lead'), async (c) => {
-  await c.env.DB.prepare('DELETE FROM project_dependencies WHERE id = ?')
-    .bind(c.req.param('depId')).run()
+  const user = c.get('user')
+  const depId = c.req.param('depId')
+  // Dependency's project must belong to caller's org
+  const owned = await c.env.DB.prepare(`
+    SELECT 1 FROM project_dependencies pd
+    JOIN projects p ON p.id = pd.project_id
+    WHERE pd.id = ? AND p.org_id = ?
+  `).bind(depId, user.orgId).first()
+  if (!owned) return c.json({ message: 'Not found' }, 404)
+  await c.env.DB.prepare('DELETE FROM project_dependencies WHERE id = ?').bind(depId).run()
   return c.json({ success: true })
 })
 

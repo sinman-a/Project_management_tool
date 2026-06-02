@@ -222,21 +222,39 @@ importPublicRoutes.get('/asana/callback', async (c) => {
 
 importPublicRoutes.get('/asana/done', (c) => {
   const success = c.req.query('success') === '1'
-  const error = c.req.query('error') ?? ''
+
+  // Whitelist error codes → fixed, safe messages (never reflect raw query input)
+  const ERROR_MESSAGES: Record<string, string> = {
+    token_exchange_failed: 'Could not complete the connection. Please try again.',
+    denied: 'Access was denied.',
+    invalid_state: 'The session expired. Please restart the connection.',
+  }
+  const errorCode = c.req.query('error') ?? ''
+  const errorMessage = ERROR_MESSAGES[errorCode] ?? 'Connection failed.'
+
+  // Target origin for postMessage — specific frontend origin, never '*'
+  const targetOrigin = c.env.ENVIRONMENT === 'production'
+    ? 'https://ppm-tool.pages.dev'
+    : 'http://localhost:5173'
+
+  const bodyText = success
+    ? '✅ Connected! This window will close automatically.'
+    : `❌ ${errorMessage}`
+
+  // success is a hardcoded boolean literal; targetOrigin and message are server-controlled constants
   return c.html(`<!DOCTYPE html><html><head><title>Asana</title></head><body>
 <script>
   try {
-    if (${success}) {
-      window.opener && window.opener.postMessage('asana-connected', '*');
+    var TARGET = ${JSON.stringify(targetOrigin)};
+    if (${success ? 'true' : 'false'}) {
+      window.opener && window.opener.postMessage('asana-connected', TARGET);
     } else {
-      window.opener && window.opener.postMessage({ asanaError: '${error}' }, '*');
+      window.opener && window.opener.postMessage({ asanaError: ${JSON.stringify(errorCode || 'unknown')} }, TARGET);
     }
   } catch(e) {}
   window.close();
 </script>
-<p style="font-family:system-ui;text-align:center;margin-top:40px">
-  ${success ? '✅ Connected! This window will close automatically.' : `❌ Error: ${error}`}
-</p>
+<p style="font-family:system-ui;text-align:center;margin-top:40px">${bodyText}</p>
 </body></html>`)
 })
 
