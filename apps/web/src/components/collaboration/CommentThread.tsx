@@ -73,6 +73,9 @@ export function CommentThread({ entityType, entityId, canModerate = false }: Pro
             )}
             {isOwn && (
               <button
+                type="button"
+                aria-label="Delete comment"
+                title="Delete comment"
                 className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 ml-2"
                 onClick={() => {
                   if (confirm('Delete this comment?')) {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Plus, Eye, EyeOff, Trash2, RotateCcw, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useDialog } from '@/hooks/useDialog'
 import {
   useProjectBoardColumns,
   useCreateBoardColumn,
@@ -85,6 +86,7 @@ function ColumnRow({ col, projectId, canEdit }: ColumnRowProps) {
           className="w-4 h-4 rounded-full flex-shrink-0 border border-border/50 transition-transform hover:scale-110"
           style={{ backgroundColor: col.color }}
           onClick={() => canEdit && setShowColors((v) => !v)}
+          aria-label={`Change colour for ${col.label}`}
           title="Change color"
         />
         <input
@@ -103,6 +105,7 @@ function ColumnRow({ col, projectId, canEdit }: ColumnRowProps) {
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={col.isVisible ? `Hide ${col.label} column` : `Show ${col.label} column`}
               title={col.isVisible ? 'Hide column' : 'Show column'}
               onClick={() => update.mutate({ id: col.id, projectId, isVisible: !col.isVisible })}
             >
@@ -111,6 +114,7 @@ function ColumnRow({ col, projectId, canEdit }: ColumnRowProps) {
             <button
               type="button"
               className="text-muted-foreground hover:text-destructive transition-colors"
+              aria-label={`Delete ${col.label} column`}
               title="Delete column"
               onClick={() => {
                 if (confirm(`Delete column "${col.label}"?`)) {
@@ -206,6 +210,7 @@ export function BoardColumnEditor({ projectId, canEdit, onClose }: Props) {
   const { data: columns = [] } = useProjectBoardColumns(projectId)
   const reset = useResetBoardColumns()
   const [showAddForm, setShowAddForm] = useState(false)
+  const dialogRef = useDialog(true, onClose)
 
   const customColumns = columns.filter((c) => !c.isDefault)
   const hasCustom = customColumns.length > 0
@@ -213,14 +218,20 @@ export function BoardColumnEditor({ projectId, canEdit, onClose }: Props) {
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
+      <div aria-hidden="true" className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-80 bg-background shadow-2xl flex flex-col border-l">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="board-settings-title"
+        className="fixed inset-y-0 right-0 z-50 w-80 bg-background shadow-2xl flex flex-col border-l"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="font-semibold text-sm">Board Settings</h3>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <h3 id="board-settings-title" className="font-semibold text-sm">Board Settings</h3>
+          <button type="button" aria-label="Close" title="Close" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>

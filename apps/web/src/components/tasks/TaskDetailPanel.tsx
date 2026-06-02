@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { useSprints } from '@/hooks/useSprints'
+import { useDialog } from '@/hooks/useDialog'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import type { Task, TaskStatus, TaskPriority, TaskType } from '@/types'
 
@@ -88,6 +89,7 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
   const { data: sprints = [] } = useSprints(projectId)
 
   const open = !!task
+  const dialogRef = useDialog(open, onClose)
 
   // Reset edit state when task changes
   useEffect(() => {
@@ -135,6 +137,7 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
     <>
       {/* Backdrop */}
       <div
+        aria-hidden="true"
         className={cn(
           'fixed inset-0 bg-black/20 z-40 transition-opacity',
           open ? 'opacity-100' : 'opacity-0 pointer-events-none',
@@ -144,6 +147,10 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
 
       {/* Panel */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={task ? `Task: ${task.name}` : 'Task details'}
         className={cn(
           'fixed inset-y-0 right-0 z-50 bg-background shadow-2xl flex flex-col transition-all duration-300 border-l',
           open ? 'translate-x-0' : 'translate-x-full',
@@ -174,6 +181,7 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
               <button
                 type="button"
                 className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                aria-label="Edit task"
                 title="Edit"
                 onClick={() => setIsEditing(true)}
               >
@@ -183,6 +191,7 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
             <button
               type="button"
               className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label={mode === 'half' ? 'Expand to full page' : 'Collapse to half page'}
               title={mode === 'half' ? 'Expand to full page' : 'Collapse to half page'}
               onClick={() => setMode((m) => m === 'half' ? 'full' : 'half')}
             >
@@ -193,6 +202,8 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
             <button
               type="button"
               className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Close"
+              title="Close"
               onClick={onClose}
             >
               <X className="w-4 h-4" />

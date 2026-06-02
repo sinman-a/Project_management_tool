@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import { useIdea, useApproveIdea, useRejectIdea, useConvertIdea } from '@/hooks/useIdeas'
 import { useAuthStore } from '@/stores/authStore'
+import { useDialog } from '@/hooks/useDialog'
 import { useNavigate } from 'react-router-dom'
 
 interface Props {
@@ -23,6 +24,10 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
   const [showConvertModal, setShowConvertModal] = useState(false)
 
+  // Only the drawer handles Escape while the nested convert modal is closed.
+  const drawerRef = useDialog(!!ideaId && !showConvertModal, onClose)
+  const convertRef = useDialog(showConvertModal, () => setShowConvertModal(false))
+
   const canDecide = user?.role === 'admin' || user?.role === 'pmo_lead' || user?.role === 'program_manager'
   const isApproved = idea?.status === 'approved'
   const isFrozen = idea?.status === 'converted_to_project'
@@ -32,17 +37,24 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
   return (
     <>
       <div
+        aria-hidden="true"
         className={cn('fixed inset-0 bg-black/30 z-40 transition-opacity', ideaId ? 'opacity-100' : 'opacity-0 pointer-events-none')}
         onClick={onClose}
       />
 
-      <div className={cn(
-        'fixed inset-y-0 right-0 z-50 w-full sm:w-[560px] bg-background shadow-2xl flex flex-col transition-transform duration-300',
-        ideaId ? 'translate-x-0' : 'translate-x-full',
-      )}>
+      <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="idea-drawer-title"
+        className={cn(
+          'fixed inset-y-0 right-0 z-50 w-full sm:w-[560px] bg-background shadow-2xl flex flex-col transition-transform duration-300',
+          ideaId ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-base">Idea Detail</h2>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <h2 id="idea-drawer-title" className="font-semibold text-base">Idea Detail</h2>
+          <button type="button" aria-label="Close" title="Close" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -214,8 +226,14 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
       {/* Convert modal */}
       {showConvertModal && idea && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="bg-background rounded-lg shadow-2xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="font-semibold">Convert to Project</h3>
+          <div
+            ref={convertRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="convert-modal-title"
+            className="bg-background rounded-lg shadow-2xl p-6 w-full max-w-sm space-y-4"
+          >
+            <h3 id="convert-modal-title" className="font-semibold">Convert to Project</h3>
             <p className="text-sm text-muted-foreground">Creates a new project from this idea.</p>
             <div className="space-y-2">
               <label className="text-xs font-medium">Start Date *</label>

@@ -9,6 +9,7 @@ import { useProjectBoardColumns } from '@/hooks/useBoardColumns'
 import { TaskForm } from './TaskForm'
 import { BoardColumnEditor } from './BoardColumnEditor'
 import { TaskDetailPanel } from './TaskDetailPanel'
+import { useDialog } from '@/hooks/useDialog'
 import type { Task, TaskStatus, TaskType, TaskPriority } from '@/types'
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -97,6 +98,8 @@ function FilterBar({
         />
         {filters.search && (
           <button
+            type="button"
+            aria-label="Clear search"
             onClick={() => onFiltersChange({ ...filters, search: '' })}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
@@ -186,6 +189,9 @@ interface TaskCardProps {
 function TaskCard({ task, canEdit, isDragging, onDragStart, onDragEnd, onCardClick }: TaskCardProps) {
   return (
     <Card
+      role="button"
+      tabIndex={0}
+      aria-label={`Open task: ${task.name}`}
       draggable={canEdit}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move'
@@ -194,9 +200,15 @@ function TaskCard({ task, canEdit, isDragging, onDragStart, onDragEnd, onCardCli
       }}
       onDragEnd={onDragEnd}
       onClick={() => onCardClick(task)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onCardClick(task)
+        }
+      }}
       className={cn(
         'transition-all select-none',
-        canEdit ? 'cursor-pointer hover:shadow-md hover:border-primary/30' : 'cursor-default',
+        canEdit ? 'cursor-pointer hover:shadow-md hover:border-primary/30' : 'cursor-pointer',
         isDragging && 'opacity-40 scale-95 shadow-none',
       )}
     >
@@ -337,6 +349,7 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
   const updateTask = useUpdateTask()
   const createTask = useCreateTask()
   const { data: boardColumns = [] } = useProjectBoardColumns(projectId)
+  const newTaskRef = useDialog(newTaskStatus !== null, () => setNewTaskStatus(null))
 
   const visibleColumns = boardColumns.filter((c) => c.isVisible)
 
@@ -364,6 +377,7 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
           {canEdit && (
             <button
               type="button"
+              aria-label="Board settings"
               title="Board settings"
               className={cn(
                 'p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors',
@@ -431,18 +445,23 @@ export function KanbanBoard({ projectId, tasks, canEdit, sprintId }: Props) {
       {/* New task modal */}
       {newTaskStatus && (
         <div
+          aria-hidden="true"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={() => setNewTaskStatus(null)}
         >
           <div
+            ref={newTaskRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-task-title"
             className="bg-background rounded-xl shadow-2xl p-5 w-full max-w-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">
+              <h3 id="new-task-title" className="text-sm font-semibold">
                 New Task — {visibleColumns.find((c) => c.statusKey === newTaskStatus)?.label ?? newTaskStatus}
               </h3>
-              <button onClick={() => setNewTaskStatus(null)} className="text-muted-foreground hover:text-foreground">
+              <button type="button" aria-label="Close" title="Close" onClick={() => setNewTaskStatus(null)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>

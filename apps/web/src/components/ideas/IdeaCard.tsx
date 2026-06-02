@@ -22,8 +22,17 @@ export function IdeaCard({ idea, onClick }: Props) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Open idea: ${idea.title}`}
       className="bg-background border rounded-lg p-3 space-y-2 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all"
       onClick={() => onClick(idea)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(idea)
+        }
+      }}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium text-sm leading-snug">{idea.title}</p>

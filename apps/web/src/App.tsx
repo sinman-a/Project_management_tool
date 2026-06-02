@@ -36,12 +36,13 @@ function OrgCurrencyLoader() {
 function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <OrgCurrencyLoader />
       <TopNav />
       <HealthBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   )

@@ -164,21 +164,24 @@ function TaskRow({ task, depth, projectId, canEdit, allTasks, dependencies, cpmD
             variant="ghost"
             size="icon"
             className={cn('w-6 h-6', showLinks && 'text-primary')}
+            aria-label="Related work"
             title="Related work"
             onClick={() => setShowLinks((v) => !v)}
           >
             <Link2 className="w-3 h-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setShowAddChild((v) => !v)}>
+          <Button variant="ghost" size="icon" className="w-6 h-6" aria-label="Add subtask" title="Add subtask" onClick={() => setShowAddChild((v) => !v)}>
             <Plus className="w-3 h-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => setEditing((v) => !v)}>
+          <Button variant="ghost" size="icon" className="w-6 h-6" aria-label="Edit task" title="Edit task" onClick={() => setEditing((v) => !v)}>
             <Pencil className="w-3 h-3" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
             className="w-6 h-6 text-destructive"
+            aria-label="Delete task"
+            title="Delete task"
             onClick={() => {
               if (confirm('Delete this task?')) deleteTask.mutate({ id: task.id, projectId })
             }}

@@ -191,6 +191,8 @@ function MatrixRow({
         <td className="border-0 pl-1 w-6">
           <button
             type="button"
+            aria-label="Delete row"
+            title="Delete row"
             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
             onClick={() => {
               if (confirm('Delete this row?')) deleteRow.mutate({ id: row.id, estimationId })
@@ -248,10 +250,10 @@ function AddGradeForm({ estimationId, onDone }: { estimationId: string; onDone: 
           <option value="opex">OPEX</option>
         </select>
         <div className="flex gap-1">
-          <button type="button" className="flex-1 text-xs bg-primary text-primary-foreground rounded py-0.5 hover:bg-primary/90" onClick={handleAdd}>
+          <button type="button" aria-label="Add grade" title="Add grade" className="flex-1 text-xs bg-primary text-primary-foreground rounded py-0.5 hover:bg-primary/90" onClick={handleAdd}>
             <Check className="w-3 h-3 mx-auto" />
           </button>
-          <button type="button" className="flex-1 text-xs border rounded py-0.5 hover:bg-muted" onClick={onDone}>
+          <button type="button" aria-label="Cancel" title="Cancel" className="flex-1 text-xs border rounded py-0.5 hover:bg-muted" onClick={onDone}>
             <X className="w-3 h-3 mx-auto" />
           </button>
         </div>
@@ -299,10 +301,10 @@ function GradeHeader({
             <option value="opex">OPEX</option>
           </select>
           <div className="flex gap-1">
-            <button type="button" className="flex-1 text-xs bg-primary text-primary-foreground rounded py-0.5" onClick={save}>
+            <button type="button" aria-label="Save grade" title="Save" className="flex-1 text-xs bg-primary text-primary-foreground rounded py-0.5" onClick={save}>
               <Check className="w-3 h-3 mx-auto" />
             </button>
-            <button type="button" className="flex-1 text-xs border rounded py-0.5 hover:bg-muted"
+            <button type="button" aria-label="Cancel" title="Cancel" className="flex-1 text-xs border rounded py-0.5 hover:bg-muted"
               onClick={() => setEditing(false)}>
               <X className="w-3 h-3 mx-auto" />
             </button>
@@ -324,10 +326,10 @@ function GradeHeader({
       </div>
       {canEdit && (
         <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setEditing(true)}>
+          <button type="button" aria-label={`Edit ${grade.name} grade`} title="Edit grade" className="text-muted-foreground hover:text-foreground" onClick={() => setEditing(true)}>
             <Pencil className="w-2.5 h-2.5" />
           </button>
-          <button type="button" className="text-muted-foreground hover:text-destructive"
+          <button type="button" aria-label={`Delete ${grade.name} grade`} title="Delete grade" className="text-muted-foreground hover:text-destructive"
             onClick={() => { if (confirm(`Delete grade "${grade.name}"?`)) deleteGrade.mutate({ id: grade.id, estimationId }) }}>
             <Trash2 className="w-2.5 h-2.5" />
           </button>
@@ -376,7 +378,7 @@ function EstimationMatrix({ estimation, canEdit }: MatrixProps) {
             )}
             {!showAddGrade && canEdit && (
               <th className="border border-dashed border-primary/30 text-center p-1 w-10">
-                <button type="button" className="text-primary hover:text-primary/70 transition-colors"
+                <button type="button" aria-label="Add grade" className="text-primary hover:text-primary/70 transition-colors"
                   onClick={() => setShowAddGrade(true)} title="Add grade">
                   <Plus className="w-4 h-4" />
                 </button>
@@ -576,8 +578,8 @@ export function CostEstimationMatrix({ projectId, canEdit }: Props) {
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
               />
-              <button type="button" className="text-primary" onClick={handleSaveName}><Check className="w-4 h-4" /></button>
-              <button type="button" className="text-muted-foreground" onClick={() => setEditingName(false)}><X className="w-4 h-4" /></button>
+              <button type="button" aria-label="Save name" title="Save" className="text-primary" onClick={handleSaveName}><Check className="w-4 h-4" /></button>
+              <button type="button" aria-label="Cancel" title="Cancel" className="text-muted-foreground" onClick={() => setEditingName(false)}><X className="w-4 h-4" /></button>
             </div>
           ) : (
             <button

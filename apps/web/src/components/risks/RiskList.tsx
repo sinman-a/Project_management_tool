@@ -61,8 +61,17 @@ export function RiskList({ risks, canEdit, onEdit }: Props) {
             return (
               <tr
                 key={risk.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open risk R-${String(risk.riskNumber).padStart(3, '0')}: ${risk.title}`}
                 className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                 onClick={() => onEdit?.(risk)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onEdit?.(risk)
+                  }
+                }}
               >
                 <td className="py-2 px-3 font-mono text-xs text-muted-foreground">
                   R-{String(risk.riskNumber).padStart(3, '0')}

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useCreateRisk, useUpdateRisk, useDeleteRisk } from '@/hooks/useRisks'
 import { useRiskCategories } from '@/hooks/useRiskCategories'
+import { useDialog } from '@/hooks/useDialog'
 import type { Risk, RiskResponseStrategy, RiskStatus } from '@/types'
 
 const SCORE_BAND = (score: number) => {
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: Props) {
+  const dialogRef = useDialog(open, onClose)
   const { data: categories = [] } = useRiskCategories()
   const createRisk = useCreateRisk()
   const updateRisk = useUpdateRisk()
@@ -140,12 +142,17 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
     <>
       {/* Backdrop */}
       <div
+        aria-hidden="true"
         className={cn('fixed inset-0 bg-black/30 z-40 transition-opacity', open ? 'opacity-100' : 'opacity-0 pointer-events-none')}
         onClick={onClose}
       />
 
       {/* Drawer */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="risk-drawer-title"
         className={cn(
           'fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-background shadow-2xl flex flex-col transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full',
@@ -153,10 +160,10 @@ export function RiskDrawer({ open, onClose, projectId, risk, canEdit = false }: 
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-base">
+          <h2 id="risk-drawer-title" className="font-semibold text-base">
             {risk ? `R-${String(risk.riskNumber).padStart(3, '0')} — ${risk.title}` : 'New Risk'}
           </h2>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <button type="button" aria-label="Close" title="Close" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
