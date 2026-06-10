@@ -7,6 +7,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { useSprints } from '@/hooks/useSprints'
 import { useDialog } from '@/hooks/useDialog'
 import { CommentThread } from '@/components/collaboration/CommentThread'
+import { TaskAssignmentsPanel } from '@/components/tasks/TaskAssignmentsPanel'
 import type { Task, TaskStatus, TaskPriority, TaskType } from '@/types'
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -408,6 +409,11 @@ export function TaskDetailPanel({ task, projectId, canEdit, onClose }: Props) {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Assigned resources (capacity planning) */}
+                <div className="border-t pt-4">
+                  <TaskAssignmentsPanel taskId={task.id} estimatedHours={task.estimatedHours} canEdit={canEdit} />
                 </div>
 
                 {/* Description */}

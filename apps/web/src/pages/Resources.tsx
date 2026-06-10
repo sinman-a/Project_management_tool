@@ -1,13 +1,33 @@
 import { useState } from 'react'
-import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar } from 'lucide-react'
+import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar, Activity, AlertTriangle } from 'lucide-react'
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from '@/hooks/useResources'
 import { useOrgSettings } from '@/hooks/useOrg'
+import { useCapacityHeatmap } from '@/hooks/useCapacity'
 import { useAuthStore } from '@/stores/authStore'
 import { ResourceForm } from '@/components/resources/ResourceForm'
+import { ResourceHeatmap } from '@/components/resources/ResourceHeatmap'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Resource } from '@/types'
+
+function OverAllocationBanner() {
+  const { data: heatmap } = useCapacityHeatmap()
+  const over = new Set(
+    (heatmap?.resources ?? [])
+      .filter((r) => r.weeks.some((w) => w.utilisation > 100))
+      .map((r) => r.resourceId),
+  )
+  if (over.size === 0) return null
+  return (
+    <div className="flex items-center gap-2 text-sm border border-amber-300 bg-amber-50 rounded-lg px-3 py-2">
+      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+      <span className="text-amber-700">
+        <span className="font-medium">{over.size}</span> resource{over.size !== 1 ? 's' : ''} over-allocated in the planning window.
+      </span>
+    </div>
+  )
+}
 
 function avatarSrc(r: Resource): string {
   if (r.avatarUrl) return r.avatarUrl
@@ -31,7 +51,7 @@ export function Resources() {
   const deleteResource = useDeleteResource()
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Resource | null>(null)
-  const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [view, setView] = useState<'cards' | 'table' | 'capacity'>('cards')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const isAdmin = user?.role === 'admin'
@@ -73,6 +93,12 @@ export function Resources() {
                 className={`px-2 py-1.5 text-xs flex items-center gap-1 transition-colors ${view === 'table' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
               >
                 <LayoutList className="w-3 h-3" /> Table
+              </button>
+              <button
+                onClick={() => setView('capacity')}
+                className={`px-2 py-1.5 text-xs flex items-center gap-1 transition-colors ${view === 'capacity' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+              >
+                <Activity className="w-3 h-3" /> Capacity
               </button>
             </div>
           )}
@@ -144,6 +170,16 @@ export function Resources() {
               <Plus className="w-4 h-4 mr-2" /> Add first resource
             </Button>
           )}
+        </div>
+      ) : view === 'capacity' ? (
+        <div className="space-y-4">
+          <OverAllocationBanner />
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Capacity Heatmap</CardTitle></CardHeader>
+            <CardContent>
+              <ResourceHeatmap />
+            </CardContent>
+          </Card>
         </div>
       ) : view === 'table' ? (
         <TeamTable

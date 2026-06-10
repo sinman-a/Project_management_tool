@@ -32,6 +32,7 @@ import { StaffCostView } from '@/components/financials/StaffCostView'
 import { BaselinePanel } from '@/components/baseline/BaselinePanel'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import { ActivityFeed } from '@/components/collaboration/ActivityFeed'
+import { ProjectTeamPanel } from '@/components/resources/ProjectTeamPanel'
 import { formatDate } from '@/lib/utils'
 import { useState, useMemo } from 'react'
 import { ProjectForm } from '@/components/projects/ProjectForm'
@@ -39,7 +40,7 @@ import type { ProjectStatus, CpmFields, TaskDependency } from '@/types'
 
 const statusFlow: ProjectStatus[] = ['planning', 'active', 'on_hold', 'completed', 'cancelled']
 
-type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks' | 'baselines' | 'discussion' | 'activity' | 'cost' | 'staffcost'
+type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks' | 'baselines' | 'discussion' | 'activity' | 'cost' | 'staffcost' | 'team'
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -110,6 +111,7 @@ export function ProjectDetail() {
     { key: 'rice', label: 'RICE' },
     { key: 'sprints', label: `Sprint (${sprints.length})` },
     { key: 'kanban', label: 'Board' },
+    { key: 'team', label: 'Team' },
     { key: 'gantt', label: 'Gantt' },
     { key: 'time', label: 'Time Logs' },
     { key: 'reports', label: 'Reports' },
@@ -365,6 +367,9 @@ export function ProjectDetail() {
         )}
         {activeTab === 'staffcost' && (
           <StaffCostView projectId={id!} />
+        )}
+        {activeTab === 'team' && (
+          <ProjectTeamPanel projectId={id!} canEdit={canEdit} />
         )}
         {activeTab === 'baselines' && (
           <BaselinePanel projectId={id!} canEdit={canEdit} />

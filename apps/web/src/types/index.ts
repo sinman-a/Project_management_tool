@@ -154,6 +154,17 @@ export interface TaskAssignment {
   allocatedHours: number
   createdAt: string
   resource?: Resource
+  resourceName?: string
+  resourceRole?: string | null
+  rate?: number
+  capacityHoursPerWeek?: number
+}
+
+// Project-level assignment row (assignment + task context)
+export interface ProjectAssignment extends TaskAssignment {
+  taskName: string
+  startDate: string | null
+  dueDate: string | null
 }
 
 export interface TimeLog {

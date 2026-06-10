@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg } from '../middleware/ownership'
+import { projectInOrg, resourceInOrg } from '../middleware/ownership'
 
 /** Verify a task belongs to the caller's org (task → project → org). */
 async function taskInOrg(db: D1Database, taskId: string, orgId: string): Promise<boolean> {
@@ -243,6 +243,54 @@ taskRoutes.delete('/:id/dependencies/:depId', requireAny('admin', 'program_manag
   if (!(await depInOrg(c.env.DB, depId, user.orgId))) return c.json({ message: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM task_dependencies WHERE id = ?').bind(depId).run()
   return c.json({ success: true })
+})
+
+// ── Resource assignments (planned capacity per task) ─────────────────────────
+
+taskRoutes.get('/:id/assignments', async (c) => {
+  const user = c.get('user')
+  const taskId = c.req.param('id')
+  if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  const { results } = await c.env.DB.prepare(`
+    SELECT ta.*, r.name as resource_name, r.role as resource_role,
+           r.rate, r.capacity_hours_per_week
+    FROM task_assignments ta
+    JOIN resources r ON r.id = ta.resource_id
+    WHERE ta.task_id = ?
+    ORDER BY r.name ASC
+  `).bind(taskId).all()
+  return c.json(results.map(toCamel))
+})
+
+taskRoutes.post('/:id/assignments', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
+  const user = c.get('user')
+  const taskId = c.req.param('id')
+  if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+
+  const body = await c.req.json()
+  const parsed = z.object({
+    resourceId: z.string().uuid(),
+    allocatedHours: z.number().min(0),
+  }).safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+
+  if (!(await resourceInOrg(c.env.DB, parsed.data.resourceId, user.orgId))) {
+    return c.json({ message: 'Invalid resource' }, 400)
+  }
+
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(`
+    INSERT INTO task_assignments (id, task_id, resource_id, allocated_hours)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(task_id, resource_id) DO UPDATE SET allocated_hours = excluded.allocated_hours
+  `).bind(id, taskId, parsed.data.resourceId, parsed.data.allocatedHours).run()
+
+  const row = await c.env.DB.prepare(`
+    SELECT ta.*, r.name as resource_name, r.role as resource_role, r.rate, r.capacity_hours_per_week
+    FROM task_assignments ta JOIN resources r ON r.id = ta.resource_id
+    WHERE ta.task_id = ? AND ta.resource_id = ?
+  `).bind(taskId, parsed.data.resourceId).first()
+  return c.json(toCamel(row!), 201)
 })
 
 // BFS reschedule: propagate new due_date forward through FS successors
