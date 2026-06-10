@@ -72,6 +72,7 @@ export interface Program {
   name: string
   description: string | null
   ownerId: string
+  portfolioId: string | null
   status: 'planning' | 'active' | 'on_hold' | 'closed'
   startDate: string
   endDate: string | null
@@ -554,6 +555,7 @@ export interface Idea {
   impact: number | null
   confidence: number | null
   effort: number | null
+  riskScore: number | null
   riceScore: number
   status: IdeaStatus
   submitterId: string
@@ -568,6 +570,7 @@ export interface Idea {
   updatedAt: string
   themes?: StrategicTheme[]
   approvals?: IdeaApproval[]
+  driverScores?: Record<string, number>   // driverId → score (1-10), from GET /:id
 }
 
 export interface IdeaApproval {
@@ -586,4 +589,71 @@ export interface StrategicTheme {
   name: string
   colour: string | null
   isActive: boolean
+}
+
+// ============================================================
+// Strategic Portfolio Management
+// ============================================================
+
+export interface Portfolio {
+  id: string
+  orgId: string
+  name: string
+  description: string | null
+  ownerId: string | null
+  ownerName?: string | null
+  programCount?: number
+  projectCount?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PortfolioSummary {
+  programs: Program[]
+  projects: Array<{
+    id: string; name: string; status: string; ragStatus: string | null; programId: string
+    budgetCapex: number; budgetOpex: number
+    spentCapex: number | null; spentOpex: number | null
+    eacCapex: number | null; eacOpex: number | null
+  }>
+  rollup: {
+    programCount: number
+    projectCount: number
+    totalBudget: number
+    totalSpent: number
+    totalEac: number
+    ragMix: Record<string, number>
+  }
+}
+
+export interface StrategicDriver {
+  id: string
+  orgId: string
+  name: string
+  weight: number
+  isActive: boolean
+  position: number
+  createdAt: string
+}
+
+// One ranked idea row from GET /ideas/ranking
+export interface IdeaRankingEntry {
+  id: string
+  title: string
+  status: IdeaStatus
+  submitterName: string | null
+  estimatedCostEur: number | null
+  riceScore: number
+  strategicValue: number   // Σ wᵢ·Sᵢ
+  costScore: number        // C (1-5)
+  riskScore: number        // R (1-5)
+  pScore: number
+  isComplete: boolean
+  driverScores: Record<string, number>  // driverId → 0..10 (for client-side what-if)
+}
+
+export interface IdeaRanking {
+  drivers: Array<{ id: string; name: string; weight: number; normWeight: number }>
+  costRange: { min: number; max: number }
+  ideas: IdeaRankingEntry[]
 }

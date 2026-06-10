@@ -7,6 +7,7 @@ import { useStrategicThemes, useCreateTheme, useDeleteTheme } from '@/hooks/useI
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
 import { ImportSection } from '@/components/settings/ImportSection'
+import { StrategicDriversCard } from '@/components/settings/StrategicDriversCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -436,6 +437,9 @@ export function Settings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Strategic Drivers (P-score) */}
+      {isAdmin && <StrategicDriversCard />}
 
       {/* Import */}
       {isAdmin && <ImportSection />}

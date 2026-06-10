@@ -3,6 +3,7 @@ import { X, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CommentThread } from '@/components/collaboration/CommentThread'
+import { IdeaStrategicValue } from '@/components/ideas/IdeaStrategicValue'
 import { useIdea, useApproveIdea, useRejectIdea, useConvertIdea } from '@/hooks/useIdeas'
 import { useAuthStore } from '@/stores/authStore'
 import { useDialog } from '@/hooks/useDialog'
@@ -126,6 +127,15 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
                 ))}
               </div>
             </section>
+
+            {/* Strategic Value — P-score */}
+            <IdeaStrategicValue
+              ideaId={idea.id}
+              estimatedCostEur={idea.estimatedCostEur}
+              initialRiskScore={idea.riskScore}
+              initialDriverScores={idea.driverScores ?? {}}
+              canEdit={canDecide || idea.submitterId === user?.id}
+            />
 
             {/* Financials */}
             {(idea.expectedValueEur != null || idea.estimatedCostEur != null) && (

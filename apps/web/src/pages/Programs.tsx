@@ -104,7 +104,11 @@ export function Programs() {
               isPending={createProgram.isPending || updateProgram.isPending}
               onCancel={handleClose}
               onSubmit={(data) => {
-                const payload = { ...data, endDate: data.endDate || undefined }
+                const payload = {
+                  ...data,
+                  endDate: data.endDate || undefined,
+                  portfolioId: data.portfolioId || null,
+                }
                 if (editTarget) {
                   updateProgram.mutate({ id: editTarget.id, ...payload }, { onSuccess: handleClose })
                 } else {

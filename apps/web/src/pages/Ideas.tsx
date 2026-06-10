@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Plus, LayoutList, Kanban } from 'lucide-react'
+import { Plus, LayoutList, Kanban, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { IdeaCard } from '@/components/ideas/IdeaCard'
 import { IdeaDetailDrawer } from '@/components/ideas/IdeaDetailDrawer'
+import { PrioritizationView } from '@/components/ideas/PrioritizationView'
 import { useIdeas, useCreateIdea, useStrategicThemes } from '@/hooks/useIdeas'
 import { useAuthStore } from '@/stores/authStore'
 import type { IdeaStatus } from '@/types'
@@ -72,7 +73,7 @@ function SubmitForm({ onClose }: { onClose: () => void }) {
 
 export function Ideas() {
   const { user } = useAuthStore()
-  const [view, setView] = useState<'pipeline' | 'list'>('pipeline')
+  const [view, setView] = useState<'pipeline' | 'list' | 'priority'>('pipeline')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [themeFilter, setThemeFilter] = useState<string>('')
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null)
@@ -117,6 +118,12 @@ export function Ideas() {
           >
             <LayoutList className="w-3.5 h-3.5" /> List
           </button>
+          <button
+            className={`px-3 py-1.5 text-sm transition-colors flex items-center gap-1 ${view === 'priority' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+            onClick={() => setView('priority')}
+          >
+            <Trophy className="w-3.5 h-3.5" /> Prioritization
+          </button>
         </div>
 
         <select
@@ -154,7 +161,9 @@ export function Ideas() {
       </div>
 
       {/* Content */}
-      {isLoading ? (
+      {view === 'priority' ? (
+        <PrioritizationView onOpenIdea={setSelectedIdeaId} />
+      ) : isLoading ? (
         <div className="py-12 text-center text-muted-foreground text-sm">Loading ideas…</div>
       ) : view === 'pipeline' ? (
         <div className="flex gap-4 overflow-x-auto pb-4">

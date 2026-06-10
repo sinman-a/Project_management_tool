@@ -2,11 +2,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
+import { usePortfolios } from '@/hooks/usePortfolios'
 import type { Program } from '@/types'
 
 const schema = z.object({
   name: z.string().min(1, 'Required').max(200),
   description: z.string().max(500).optional(),
+  portfolioId: z.string().optional().or(z.literal('')),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD required'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
   budgetCapex: z.coerce.number().min(0).default(0),
@@ -23,18 +25,20 @@ interface ProgramFormProps {
 }
 
 export function ProgramForm({ program, onSubmit, isPending, onCancel }: ProgramFormProps) {
+  const { data: portfolios = [] } = usePortfolios()
   const { register, handleSubmit, formState: { errors } } = useForm<FormInput>({
     resolver: zodResolver(schema),
     defaultValues: program
       ? {
           name: program.name,
           description: program.description ?? '',
+          portfolioId: program.portfolioId ?? '',
           startDate: program.startDate,
           endDate: program.endDate ?? '',
           budgetCapex: program.budgetCapex,
           budgetOpex: program.budgetOpex,
         }
-      : { startDate: new Date().toISOString().slice(0, 10), budgetCapex: 0, budgetOpex: 0 },
+      : { portfolioId: '', startDate: new Date().toISOString().slice(0, 10), budgetCapex: 0, budgetOpex: 0 },
   })
 
   return (
@@ -48,6 +52,16 @@ export function ProgramForm({ program, onSubmit, isPending, onCancel }: ProgramF
       <div>
         <label className="text-sm font-medium">Description</label>
         <textarea className="input-field resize-none" rows={3} {...register('description')} />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Portfolio</label>
+        <select className="input-field" {...register('portfolioId')}>
+          <option value="">— No portfolio —</option>
+          {portfolios.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

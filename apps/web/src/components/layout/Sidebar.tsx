@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, LayoutDashboard, FolderOpen, FolderKanban, Users, BarChart3, Settings, Clock } from 'lucide-react'
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, LayoutDashboard, FolderOpen, FolderKanban, Users, BarChart3, Settings, Clock, Layers, Lightbulb } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -100,8 +100,10 @@ export function Sidebar() {
 
       <div className="p-2 space-y-0.5 border-b">
         <NavLink to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+        <NavLink to="/portfolios" icon={Layers} label="Portfolios" />
         <NavLink to="/programs" icon={FolderOpen} label="Programs" />
         <NavLink to="/projects" icon={FolderKanban} label="All Projects" />
+        <NavLink to="/ideas" icon={Lightbulb} label="Ideas" />
         <NavLink to="/resources" icon={Users} label="Resources" />
         <NavLink to="/timesheet" icon={Clock} label="Timesheet" />
         <NavLink to="/reports" icon={BarChart3} label="Reports" />

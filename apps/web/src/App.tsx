@@ -14,6 +14,8 @@ import { Dashboard } from '@/pages/Dashboard'
 import { Settings } from '@/pages/Settings'
 import { Programs } from '@/pages/Programs'
 import { ProgramDetail } from '@/pages/ProgramDetail'
+import { Portfolios } from '@/pages/Portfolios'
+import { PortfolioDetail } from '@/pages/PortfolioDetail'
 import { Projects } from '@/pages/Projects'
 import { ProjectDetail } from '@/pages/ProjectDetail'
 import { Resources } from '@/pages/Resources'
@@ -86,6 +88,8 @@ export default function App() {
       <Route path="/register" element={<Register />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/portfolios" element={<ProtectedRoute><Portfolios /></ProtectedRoute>} />
+      <Route path="/portfolios/:id" element={<ProtectedRoute><PortfolioDetail /></ProtectedRoute>} />
       <Route path="/programs" element={<ProtectedRoute><Programs /></ProtectedRoute>} />
       <Route path="/programs/:id" element={<ProtectedRoute><ProgramDetail /></ProtectedRoute>} />
       <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />

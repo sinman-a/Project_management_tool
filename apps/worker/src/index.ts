@@ -34,6 +34,8 @@ import {
   rowRoutes,
   cellRoutes,
 } from './routes/costEstimations'
+import { portfolioRoutes } from './routes/portfolios'
+import { strategicDriverRoutes } from './routes/strategicDrivers'
 
 const app = new Hono<HonoContext>()
 
@@ -79,6 +81,8 @@ api.route('/cost-estimations', costEstimationRoutes)
 api.route('/cost-estimation-grades', gradeRoutes)
 api.route('/cost-estimation-rows', rowRoutes)
 api.route('/cost-estimation-cells', cellRoutes)
+api.route('/portfolios', portfolioRoutes)
+api.route('/strategic-drivers', strategicDriverRoutes)
 
 app.route('/api', api)
 

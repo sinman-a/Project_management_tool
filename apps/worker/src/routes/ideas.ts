@@ -4,6 +4,7 @@ import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { programInOrg } from '../middleware/ownership'
 import { createNotification } from '../services/notificationService'
+import { scoreIdeas } from '../services/scoringService'
 
 const ideaSchema = z.object({
   title: z.string().min(1).max(300),
@@ -16,6 +17,7 @@ const ideaSchema = z.object({
   impact: z.number().int().min(1).max(9).nullish(),
   confidence: z.number().min(0.1).max(1.0).nullish(),
   effort: z.number().int().min(1).max(10).nullish(),
+  riskScore: z.number().int().min(1).max(5).nullish(),
   themeIds: z.array(z.string().uuid()).optional(),
 })
 
@@ -41,6 +43,73 @@ ideaRoutes.get('/balance-report', async (c) => {
     ORDER BY total_cost DESC
   `).bind(user.orgId).all()
   return c.json(results.map(toCamel))
+})
+
+// GET /ideas/ranking — P_score ranking of candidate ideas (static, before /:id)
+ideaRoutes.get('/ranking', async (c) => {
+  const user = c.get('user')
+  const status = c.req.query('status')
+
+  let where = `i.org_id = ? AND i.archived_at IS NULL AND i.status NOT IN ('rejected','converted_to_project')`
+  const params: unknown[] = [user.orgId]
+  if (status) { where = `i.org_id = ? AND i.archived_at IS NULL AND i.status = ?`; params.push(status) }
+
+  const { results: ideas } = await c.env.DB.prepare(`
+    SELECT i.id, i.title, i.status, i.estimated_cost_eur, i.risk_score, i.rice_score,
+           u.full_name as submitter_name
+    FROM ideas i
+    LEFT JOIN users u ON u.id = i.submitter_id
+    WHERE ${where}
+    LIMIT 500
+  `).bind(...params).all<{
+    id: string; title: string; status: string; estimated_cost_eur: number | null
+    risk_score: number | null; rice_score: number; submitter_name: string | null
+  }>()
+
+  const { drivers, scores, costRange } = await scoreIdeas(
+    c.env.DB, user.orgId,
+    ideas.map((i) => ({ id: i.id, estimated_cost_eur: i.estimated_cost_eur, risk_score: i.risk_score })),
+  )
+
+  // Per-idea driver scores (for client-side What-if recomputation)
+  const driverScoresByIdea = new Map<string, Record<string, number>>()
+  if (ideas.length > 0) {
+    const ideaIds = ideas.map((i) => i.id)
+    const ph = ideaIds.map(() => '?').join(',')
+    const { results: dsRows } = await c.env.DB.prepare(
+      `SELECT idea_id, driver_id, score FROM idea_driver_scores WHERE idea_id IN (${ph})`,
+    ).bind(...ideaIds).all<{ idea_id: string; driver_id: string; score: number }>()
+    for (const r of dsRows) {
+      if (!driverScoresByIdea.has(r.idea_id)) driverScoresByIdea.set(r.idea_id, {})
+      driverScoresByIdea.get(r.idea_id)![r.driver_id] = r.score
+    }
+  }
+
+  const ranked = ideas
+    .map((i) => {
+      const s = scores.get(i.id)!
+      return {
+        id: i.id,
+        title: i.title,
+        status: i.status,
+        submitterName: i.submitter_name,
+        estimatedCostEur: i.estimated_cost_eur,
+        riceScore: i.rice_score,
+        strategicValue: s.strategicValue,
+        costScore: s.costScore,
+        riskScore: s.riskScore,
+        pScore: s.pScore,
+        isComplete: s.isComplete,
+        driverScores: driverScoresByIdea.get(i.id) ?? {},
+      }
+    })
+    .sort((a, b) => b.pScore - a.pScore)
+
+  return c.json({
+    drivers: drivers.map((d) => ({ id: d.id, name: d.name, weight: d.weight, normWeight: d.normWeight })),
+    costRange,
+    ideas: ranked,
+  })
 })
 
 ideaRoutes.get('/', async (c) => {
@@ -83,12 +152,12 @@ ideaRoutes.post('/', async (c) => {
   await c.env.DB.prepare(`
     INSERT INTO ideas (id, org_id, title, problem_statement, proposed_solution,
       expected_value_eur, estimated_cost_eur, estimated_effort_weeks,
-      reach, impact, confidence, effort, submitter_id, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+      reach, impact, confidence, effort, risk_score, submitter_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
   `).bind(
     id, user.orgId, d.title, d.problemStatement, d.proposedSolution ?? null,
     d.expectedValueEur ?? null, d.estimatedCostEur ?? null, d.estimatedEffortWeeks ?? null,
-    d.reach ?? null, d.impact ?? null, d.confidence ?? null, d.effort ?? null, user.sub,
+    d.reach ?? null, d.impact ?? null, d.confidence ?? null, d.effort ?? null, d.riskScore ?? null, user.sub,
   ).run()
 
   if (d.themeIds?.length) {
@@ -128,7 +197,60 @@ ideaRoutes.get('/:id', async (c) => {
     WHERE ia.idea_id = ? ORDER BY ia.decided_at DESC
   `).bind(id).all()
 
-  return c.json({ ...toCamel(idea as Record<string, unknown>), themes: themes.map(toCamel), approvals: approvals.map(toCamel) })
+  // Per-driver expert scores (map driverId → score)
+  const { results: driverScoreRows } = await c.env.DB.prepare(
+    'SELECT driver_id, score FROM idea_driver_scores WHERE idea_id = ?',
+  ).bind(id).all<{ driver_id: string; score: number }>()
+  const driverScores: Record<string, number> = {}
+  for (const r of driverScoreRows) driverScores[r.driver_id] = r.score
+
+  return c.json({
+    ...toCamel(idea as Record<string, unknown>),
+    themes: themes.map(toCamel),
+    approvals: approvals.map(toCamel),
+    driverScores,
+  })
+})
+
+// PUT /ideas/:id/driver-scores — bulk upsert strategic driver scores
+ideaRoutes.put('/:id/driver-scores', async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+
+  const idea = await c.env.DB.prepare('SELECT submitter_id FROM ideas WHERE id = ? AND org_id = ? AND archived_at IS NULL')
+    .bind(id, user.orgId).first<{ submitter_id: string }>()
+  if (!idea) return c.json({ message: 'Not found' }, 404)
+
+  const canEdit = user.role === 'admin'
+    || ['program_manager', 'pmo_lead', 'project_manager'].includes(user.role)
+    || idea.submitter_id === user.sub
+  if (!canEdit) return c.json({ message: 'Forbidden' }, 403)
+
+  const body = await c.req.json()
+  const parsed = z.object({
+    scores: z.array(z.object({
+      driverId: z.string().uuid(),
+      score: z.number().int().min(0).max(10),
+    })),
+  }).safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+
+  for (const { driverId, score } of parsed.data.scores) {
+    // driver must belong to caller's org
+    const ok = await c.env.DB.prepare('SELECT 1 FROM strategic_drivers WHERE id = ? AND org_id = ?')
+      .bind(driverId, user.orgId).first()
+    if (!ok) continue
+    await c.env.DB.prepare(`
+      INSERT INTO idea_driver_scores (idea_id, driver_id, score) VALUES (?, ?, ?)
+      ON CONFLICT(idea_id, driver_id) DO UPDATE SET score = excluded.score
+    `).bind(id, driverId, score).run()
+  }
+
+  const { results } = await c.env.DB.prepare('SELECT driver_id, score FROM idea_driver_scores WHERE idea_id = ?')
+    .bind(id).all<{ driver_id: string; score: number }>()
+  const driverScores: Record<string, number> = {}
+  for (const r of results) driverScores[r.driver_id] = r.score
+  return c.json({ driverScores })
 })
 
 ideaRoutes.patch('/:id', async (c) => {
@@ -157,6 +279,7 @@ ideaRoutes.patch('/:id', async (c) => {
     expectedValueEur: 'expected_value_eur', estimatedCostEur: 'estimated_cost_eur',
     estimatedEffortWeeks: 'estimated_effort_weeks',
     reach: 'reach', impact: 'impact', confidence: 'confidence', effort: 'effort',
+    riskScore: 'risk_score',
   }
 
   for (const [camel, snake] of Object.entries(fieldMap)) {

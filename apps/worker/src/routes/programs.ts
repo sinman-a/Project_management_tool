@@ -1,16 +1,24 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 
 const programSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().optional(),
+  portfolioId: z.string().uuid().nullish(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   budgetCapex: z.number().min(0).default(0),
   budgetOpex: z.number().min(0).default(0),
 })
+
+async function portfolioInOrg(db: D1Database, portfolioId: string, orgId: string): Promise<boolean> {
+  const row = await db.prepare('SELECT 1 FROM portfolios WHERE id = ? AND org_id = ?')
+    .bind(portfolioId, orgId).first()
+  return !!row
+}
 
 export const programRoutes = new Hono<HonoContext>()
 
@@ -49,14 +57,17 @@ programRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'), asyn
   const parsed = programSchema.safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
-  const { name, description, startDate, endDate, budgetCapex, budgetOpex } = parsed.data
+  const { name, description, portfolioId, startDate, endDate, budgetCapex, budgetOpex } = parsed.data
+  if (portfolioId && !(await portfolioInOrg(c.env.DB, portfolioId, user.orgId))) {
+    return c.json({ message: 'Invalid portfolio' }, 400)
+  }
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
-    INSERT INTO programs (id, org_id, name, description, owner_id, status, start_date, end_date, budget_capex, budget_opex)
-    VALUES (?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?)
+    INSERT INTO programs (id, org_id, name, description, portfolio_id, owner_id, status, start_date, end_date, budget_capex, budget_opex)
+    VALUES (?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?)
   `)
-    .bind(id, user.orgId, name, description ?? null, user.sub, startDate, endDate ?? null, budgetCapex, budgetOpex)
+    .bind(id, user.orgId, name, description ?? null, portfolioId ?? null, user.sub, startDate, endDate ?? null, budgetCapex, budgetOpex)
     .run()
 
   const program = await c.env.DB.prepare('SELECT * FROM programs WHERE id = ?').bind(id).first()
@@ -76,7 +87,10 @@ programRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead'), 
   }
 
   const body = await c.req.json()
-  const allowed = ['name', 'description', 'status', 'end_date', 'budget_capex', 'budget_opex']
+  if (body.portfolioId != null && !(await portfolioInOrg(c.env.DB, body.portfolioId, user.orgId))) {
+    return c.json({ message: 'Invalid portfolio' }, 400)
+  }
+  const allowed = ['name', 'description', 'status', 'end_date', 'budget_capex', 'budget_opex', 'portfolio_id']
   const updates = Object.entries(body)
     .filter(([k]) => allowed.includes(toSnake(k)))
     .map(([k, v]) => [toSnake(k), v])

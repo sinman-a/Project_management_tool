@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut, Bell, Lightbulb } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut, Bell, Lightbulb, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
@@ -10,6 +10,7 @@ import { useNotifications, useMarkAllNotificationsRead, useMarkNotificationRead 
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/portfolios', icon: Layers, label: 'Portfolios' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/ideas', icon: Lightbulb, label: 'Ideas' },
   { to: '/resources', icon: Users, label: 'Resources' },
