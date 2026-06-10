@@ -38,6 +38,7 @@ import { portfolioRoutes } from './routes/portfolios'
 import { strategicDriverRoutes } from './routes/strategicDrivers'
 import { assignmentRoutes, assignmentSubRoutes } from './routes/assignments'
 import { budgetVersionRoutes, budgetVersionSubRoutes } from './routes/budgetVersions'
+import { analyticsRoutes } from './routes/analytics'
 
 const app = new Hono<HonoContext>()
 
@@ -89,6 +90,7 @@ api.route('/task-assignments', assignmentRoutes)
 api.route('/projects', assignmentSubRoutes)
 api.route('/budget-versions', budgetVersionRoutes)
 api.route('/projects', budgetVersionSubRoutes)
+api.route('/analytics', analyticsRoutes)
 
 app.route('/api', api)
 

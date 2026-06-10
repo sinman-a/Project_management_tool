@@ -706,3 +706,50 @@ export interface IdeaRanking {
   costRange: { min: number; max: number }
   ideas: IdeaRankingEntry[]
 }
+
+// ============================================================
+// Predictive Analytics & Reporting (non-AI)
+// ============================================================
+
+export interface ProjectForecast {
+  hasData: boolean
+  confidence: 'high' | 'medium' | 'low'
+  plannedFinish: string | null
+  forecastFinish: string | null
+  scheduleVarianceDays: number | null
+  spi: number | null
+  cpi: number | null
+  velocityPtsPerWeek: number | null
+  remainingDays: number | null
+}
+
+export interface PortfolioAnalyticsRow {
+  projectId: string
+  name: string
+  status: ProjectStatus
+  rag: RagStatus
+  spi: number | null
+  cpi: number | null
+  budget: number
+  spent: number
+  forecastFinish: string | null
+  plannedFinish: string | null
+  scheduleVarianceDays: number | null
+}
+
+export interface PortfolioAnalytics {
+  projects: PortfolioAnalyticsRow[]
+  ragDistribution: { green: number; amber: number; red: number }
+  totalBudget: number
+  totalSpent: number
+  avgSpi: number | null
+  avgCpi: number | null
+}
+
+export interface Insight {
+  severity: 'red' | 'amber'
+  category: string
+  projectId: string | null
+  projectName: string
+  message: string
+}

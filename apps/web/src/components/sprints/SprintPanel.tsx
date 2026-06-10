@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCreateSprint, useUpdateSprint, useDeleteSprint } from '@/hooks/useSprints'
 import { useCreateTask, useUpdateTask } from '@/hooks/useTasks'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { BurndownChart } from '@/components/analytics/BurndownChart'
 import type { Sprint, Task } from '@/types'
 
 const schema = z.object({
@@ -196,6 +197,11 @@ function SprintCard({
 
       {expanded && (
         <CardContent className="pt-0 pb-3">
+          {sprintTasks.length > 0 && (
+            <div className="border-t pt-3 mb-2">
+              <BurndownChart sprint={sprint} tasks={tasks} />
+            </div>
+          )}
           {sprintTasks.length > 0 && (
             <div className="space-y-1 border-t pt-2">
               {sprintTasks.map((task) => (

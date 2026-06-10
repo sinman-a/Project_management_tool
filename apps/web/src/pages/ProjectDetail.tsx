@@ -27,6 +27,7 @@ import { RiskRegister } from '@/components/risks/RiskRegister'
 import { TopRisksWidget } from '@/components/risks/TopRisksWidget'
 import { ExportButton } from '@/components/ui/ExportButton'
 import { EVMTiles } from '@/components/baseline/EVMTiles'
+import { ForecastCard } from '@/components/analytics/ForecastCard'
 import { CostEstimationMatrix } from '@/components/financials/CostEstimationMatrix'
 import { StaffCostView } from '@/components/financials/StaffCostView'
 import { RoiCard } from '@/components/financials/RoiCard'
@@ -232,6 +233,9 @@ export function ProjectDetail() {
 
       {/* EVM Tiles */}
       <EVMTiles projectId={id!} />
+
+      {/* Completion Forecast */}
+      <ForecastCard projectId={id!} />
 
       {/* Top Risks */}
       <TopRisksWidget projectId={id!} onRiskClick={() => setActiveTab('risks')} />
