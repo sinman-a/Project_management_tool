@@ -24,6 +24,13 @@ function cpiValue(p: ProjectWithBudget): number | null {
   return budget / used
 }
 
+function roiValue(p: ProjectWithBudget): number | null {
+  const budget = (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
+  const benefit = p.expectedBenefit ?? 0
+  if (budget <= 0 || benefit <= 0) return null
+  return ((benefit - budget) / budget) * 100
+}
+
 interface Props {
   projects: ProjectWithBudget[]
 }
@@ -51,6 +58,7 @@ export function PortfolioTable({ projects }: Props) {
             <th className="text-right py-2 px-3">Spent %</th>
             <th className="text-right py-2 px-3">EAC</th>
             <th className="text-right py-2 px-3">CPI</th>
+            <th className="text-right py-2 px-3">ROI</th>
             <th className="text-right py-2 px-3">Burn/wk</th>
           </tr>
         </thead>
@@ -64,6 +72,7 @@ export function PortfolioTable({ projects }: Props) {
             const spentPct = budget > 0 ? ((spent + committed) / budget) * 100 : 0
             const rag = computeRag(p)
             const cpi = cpiValue(p)
+            const roi = roiValue(p)
             const hasSnapshot = p.lastSnapshotDate != null
 
             return (
@@ -113,6 +122,13 @@ export function PortfolioTable({ projects }: Props) {
                       cpi < 0.85 ? 'text-red-600' : cpi < 1.0 ? 'text-amber-600' : 'text-green-600',
                     )}>
                       {cpi.toFixed(2)}
+                    </span>
+                  ) : '—'}
+                </td>
+                <td className="py-2.5 px-3 text-right">
+                  {roi != null ? (
+                    <span className={cn('font-medium', roi >= 0 ? 'text-green-600' : 'text-red-600')}>
+                      {roi > 0 ? '+' : ''}{roi.toFixed(0)}%
                     </span>
                   ) : '—'}
                 </td>

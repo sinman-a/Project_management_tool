@@ -16,6 +16,7 @@ const projectSchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   budgetCapex: z.number().min(0).default(0),
   budgetOpex: z.number().min(0).default(0),
+  expectedBenefit: z.number().min(0).default(0),
 })
 
 export const projectRoutes = new Hono<HonoContext>()
@@ -97,14 +98,14 @@ projectRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead'), asyn
   const parsed = projectSchema.safeParse(body)
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
-  const { programId, name, description, methodology, startDate, endDate, budgetCapex, budgetOpex } = parsed.data
+  const { programId, name, description, methodology, startDate, endDate, budgetCapex, budgetOpex, expectedBenefit } = parsed.data
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
-    INSERT INTO projects (id, org_id, program_id, name, description, manager_id, methodology, status, start_date, end_date, budget_capex, budget_opex)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?)
+    INSERT INTO projects (id, org_id, program_id, name, description, manager_id, methodology, status, start_date, end_date, budget_capex, budget_opex, expected_benefit)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?, ?)
   `)
-    .bind(id, user.orgId, programId ?? null, name, description ?? null, user.sub, methodology, startDate, endDate ?? null, budgetCapex, budgetOpex)
+    .bind(id, user.orgId, programId ?? null, name, description ?? null, user.sub, methodology, startDate, endDate ?? null, budgetCapex, budgetOpex, expectedBenefit)
     .run()
 
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first()
@@ -125,8 +126,8 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', '
 
   const body = await c.req.json()
   const allowed = ['name', 'description', 'status', 'end_date', 'methodology']
-  const budgetAllowed = ['budget_capex', 'budget_opex']
-  const canEditBudget = user.role === 'admin' || user.role === 'program_manager'
+  const budgetAllowed = ['budget_capex', 'budget_opex', 'expected_benefit']
+  const canEditBudget = user.role === 'admin' || user.role === 'program_manager' || user.role === 'pmo_lead'
 
   const updates = Object.entries(body)
     .filter(([k]) => {
@@ -267,6 +268,30 @@ projectRoutes.get('/:id/schedule', async (c) => {
     }
     throw e
   }
+})
+
+// GET /:id/roi — return on investment vs budget and projected vs EAC
+projectRoutes.get('/:id/roi', async (c) => {
+  const user = c.get('user')
+  const projectId = c.req.param('id')
+  const project = await c.env.DB.prepare(
+    'SELECT budget_capex, budget_opex, expected_benefit FROM projects WHERE id = ? AND org_id = ?',
+  ).bind(projectId, user.orgId).first<{ budget_capex: number; budget_opex: number; expected_benefit: number }>()
+  if (!project) return c.json({ message: 'Not found' }, 404)
+
+  const snapshot = await c.env.DB.prepare(
+    'SELECT eac_capex, eac_opex FROM budget_snapshots WHERE project_id = ? ORDER BY snapshot_date DESC, rowid DESC LIMIT 1',
+  ).bind(projectId).first<{ eac_capex: number; eac_opex: number }>()
+
+  const totalBudget = (project.budget_capex ?? 0) + (project.budget_opex ?? 0)
+  const expectedBenefit = project.expected_benefit ?? 0
+  const eacTotal = snapshot ? (snapshot.eac_capex ?? 0) + (snapshot.eac_opex ?? 0) : 0
+
+  const netBenefit = expectedBenefit - totalBudget
+  const roiPct = totalBudget > 0 ? (netBenefit / totalBudget) * 100 : null
+  const projectedRoiPct = eacTotal > 0 ? ((expectedBenefit - eacTotal) / eacTotal) * 100 : null
+
+  return c.json({ totalBudget, expectedBenefit, netBenefit, roiPct, eacTotal, projectedRoiPct })
 })
 
 // GET /:id/status-reports/suggestion — auto-suggest RAGs

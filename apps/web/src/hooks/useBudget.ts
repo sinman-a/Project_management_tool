@@ -1,11 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { BudgetSnapshot, Project } from '@/types'
+import type { BudgetSnapshot, Project, RoiResult } from '@/types'
 
 export function useProjectBudget(projectId: string) {
   return useQuery({
     queryKey: ['budget', 'project', projectId],
     queryFn: () => api.get<BudgetSnapshot>(`/projects/${projectId}/budget`),
+    enabled: !!projectId,
+    staleTime: 65_000,
+  })
+}
+
+export function useProjectRoi(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['roi', projectId],
+    queryFn: () => api.get<RoiResult>(`/projects/${projectId}/roi`),
     enabled: !!projectId,
     staleTime: 65_000,
   })

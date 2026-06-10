@@ -16,6 +16,7 @@ const schema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
   budgetCapex: z.coerce.number().min(0).default(0),
   budgetOpex: z.coerce.number().min(0).default(0),
+  expectedBenefit: z.coerce.number().min(0).default(0),
 })
 
 type FormInput = z.infer<typeof schema>
@@ -48,6 +49,7 @@ export function ProjectForm({ project, defaultProgramId, onSubmit, isPending, on
           endDate: project.endDate ?? '',
           budgetCapex: project.budgetCapex,
           budgetOpex: project.budgetOpex,
+          expectedBenefit: project.expectedBenefit ?? 0,
         }
       : {
           programId: defaultProgramId ?? '',
@@ -55,6 +57,7 @@ export function ProjectForm({ project, defaultProgramId, onSubmit, isPending, on
           startDate: new Date().toISOString().slice(0, 10),
           budgetCapex: 0,
           budgetOpex: 0,
+          expectedBenefit: 0,
         },
   })
 
@@ -119,6 +122,12 @@ export function ProjectForm({ project, defaultProgramId, onSubmit, isPending, on
           <label className="text-sm font-medium">OPEX Budget ($)</label>
           <input type="number" min="0" step="1000" className="input-field" {...register('budgetOpex')} />
         </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Expected Benefit ($)</label>
+        <input type="number" min="0" step="1000" className="input-field" {...register('expectedBenefit')} />
+        <p className="text-xs text-muted-foreground mt-1">Total expected financial return — used to compute ROI.</p>
       </div>
 
       <div className="flex gap-2 justify-end pt-2">

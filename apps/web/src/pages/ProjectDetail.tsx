@@ -29,6 +29,8 @@ import { ExportButton } from '@/components/ui/ExportButton'
 import { EVMTiles } from '@/components/baseline/EVMTiles'
 import { CostEstimationMatrix } from '@/components/financials/CostEstimationMatrix'
 import { StaffCostView } from '@/components/financials/StaffCostView'
+import { RoiCard } from '@/components/financials/RoiCard'
+import { BudgetVersionsPanel } from '@/components/financials/BudgetVersionsPanel'
 import { BaselinePanel } from '@/components/baseline/BaselinePanel'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import { ActivityFeed } from '@/components/collaboration/ActivityFeed'
@@ -40,7 +42,7 @@ import type { ProjectStatus, CpmFields, TaskDependency } from '@/types'
 
 const statusFlow: ProjectStatus[] = ['planning', 'active', 'on_hold', 'completed', 'cancelled']
 
-type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks' | 'baselines' | 'discussion' | 'activity' | 'cost' | 'staffcost' | 'team'
+type Tab = 'wbs' | 'kanban' | 'gantt' | 'sprints' | 'time' | 'reports' | 'rice' | 'risks' | 'baselines' | 'discussion' | 'activity' | 'cost' | 'staffcost' | 'team' | 'budget'
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -116,6 +118,7 @@ export function ProjectDetail() {
     { key: 'time', label: 'Time Logs' },
     { key: 'reports', label: 'Reports' },
     { key: 'risks', label: 'Risks', badge: hasCriticalOpenRisk },
+    { key: 'budget', label: 'Budget' },
     { key: 'cost', label: 'Cost Estimation' },
     { key: 'staffcost', label: 'Staff Cost' },
     { key: 'baselines', label: 'Baselines' },
@@ -370,6 +373,12 @@ export function ProjectDetail() {
         )}
         {activeTab === 'team' && (
           <ProjectTeamPanel projectId={id!} canEdit={canEdit} />
+        )}
+        {activeTab === 'budget' && (
+          <div className="space-y-4">
+            <RoiCard projectId={id!} />
+            <BudgetVersionsPanel projectId={id!} canEdit={canEdit} />
+          </div>
         )}
         {activeTab === 'baselines' && (
           <BaselinePanel projectId={id!} canEdit={canEdit} />

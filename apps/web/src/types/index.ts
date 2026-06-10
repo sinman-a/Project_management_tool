@@ -96,9 +96,47 @@ export interface Project {
   endDate: string | null
   budgetCapex: number
   budgetOpex: number
+  expectedBenefit: number
   createdAt: string
   ragStatus?: RagStatus
   budgetSnapshot?: BudgetSnapshot
+}
+
+export interface RoiResult {
+  totalBudget: number
+  expectedBenefit: number
+  netBenefit: number
+  roiPct: number | null
+  eacTotal: number
+  projectedRoiPct: number | null
+}
+
+export type BudgetVersionStatus = 'draft' | 'approved' | 'active' | 'archived'
+
+export interface BudgetVersion {
+  id: string
+  projectId: string
+  label: string
+  gate: string | null
+  capex: number
+  opex: number
+  status: BudgetVersionStatus
+  notes: string | null
+  createdBy: string
+  createdByName?: string | null
+  approvedBy: string | null
+  approvedByName?: string | null
+  approvedAt: string | null
+  createdAt: string
+}
+
+export interface BudgetVariance {
+  reference: BudgetVersion | null
+  active: BudgetVersion | null
+  deltaCapex: number
+  deltaOpex: number
+  deltaTotal: number
+  pctChange: number | null
 }
 
 export interface Sprint {
