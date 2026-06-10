@@ -1,9 +1,11 @@
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, LayoutDashboard, FolderOpen, FolderKanban, Users, BarChart3, Settings, Clock, Layers, Lightbulb } from 'lucide-react'
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { usePrograms, useProjects } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
+import { NAV_ITEMS, canAccessRoute } from '@/lib/permissions'
 import { RagDot } from './RagDot'
 import { Button } from '@/components/ui/button'
 import type { Program } from '@/types'
@@ -76,6 +78,10 @@ function NavLink({ to, icon: Icon, label }: { to: string; icon: React.ElementTyp
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUiStore()
   const { data: programs = [] } = usePrograms()
+  const user = useAuthStore((s) => s.user)
+  const role = user?.role
+  const navItems = role ? NAV_ITEMS.filter((item) => canAccessRoute(role, item.to)) : []
+  const showPortfolioTree = role ? canAccessRoute(role, '/projects') : false
 
   if (sidebarCollapsed) {
     return (
@@ -99,28 +105,24 @@ export function Sidebar() {
       </div>
 
       <div className="p-2 space-y-0.5 border-b">
-        <NavLink to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-        <NavLink to="/portfolios" icon={Layers} label="Portfolios" />
-        <NavLink to="/programs" icon={FolderOpen} label="Programs" />
-        <NavLink to="/projects" icon={FolderKanban} label="All Projects" />
-        <NavLink to="/ideas" icon={Lightbulb} label="Ideas" />
-        <NavLink to="/resources" icon={Users} label="Resources" />
-        <NavLink to="/timesheet" icon={Clock} label="Timesheet" />
-        <NavLink to="/reports" icon={BarChart3} label="Reports" />
-        <NavLink to="/settings" icon={Settings} label="Settings" />
+        {navItems.map((item) => (
+          <NavLink key={item.to} to={item.to} icon={item.icon} label={item.label} />
+        ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
-          Portfolio
-        </p>
-        {programs.map((program) => (
-          <ProgramNode key={program.id} program={program} />
-        ))}
-        {programs.length === 0 && (
-          <p className="text-xs text-muted-foreground px-3 py-2">No programs yet.</p>
-        )}
-      </div>
+      {showPortfolioTree && (
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
+            Portfolio
+          </p>
+          {programs.map((program) => (
+            <ProgramNode key={program.id} program={program} />
+          ))}
+          {programs.length === 0 && (
+            <p className="text-xs text-muted-foreground px-3 py-2">No programs yet.</p>
+          )}
+        </div>
+      )}
     </aside>
   )
 }

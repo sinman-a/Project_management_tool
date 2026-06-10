@@ -10,6 +10,16 @@ export function useTasks(projectId: string | undefined) {
   })
 }
 
+export type AssignedTask = Task & { projectName: string }
+
+/** Tasks assigned to the current user across all projects (excludes done/cancelled). */
+export function useAssignedTasks() {
+  return useQuery({
+    queryKey: ['tasks', 'assigned'],
+    queryFn: () => api.get<AssignedTask[]>('/tasks/assigned'),
+  })
+}
+
 export function useCreateTask() {
   const qc = useQueryClient()
   return useMutation({

@@ -4,6 +4,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { useSetupStatus } from '@/hooks/useUsers'
 import { useOrgSettings } from '@/hooks/useOrg'
 import { setDefaultCurrency } from '@/lib/utils'
+import { landingPath, ROUTE_ACCESS } from '@/lib/permissions'
+import type { UserRole } from '@/types'
 import { TopNav } from '@/components/layout/TopNav'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { HealthBar } from '@/components/layout/HealthBar'
@@ -23,6 +25,7 @@ import { Timesheet } from '@/pages/Timesheet'
 import { Reports } from '@/pages/Reports'
 import { Ideas } from '@/pages/Ideas'
 import { Notifications } from '@/pages/Notifications'
+import { MyWork } from '@/pages/MyWork'
 import { Landing } from '@/pages/Landing'
 
 function OrgCurrencyLoader() {
@@ -65,16 +68,17 @@ function RootRedirect() {
   if (setupLoading || authLoading) return <Spinner />
   if (setupStatus?.needsSetup) return <Navigate to="/setup" replace />
   if (!user) return <Landing />
-  return <Navigate to="/dashboard" replace />
+  return <Navigate to={landingPath(user.role)} replace />
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, allow }: { children: React.ReactNode; allow?: UserRole[] }) {
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus()
   const { user, isLoading: authLoading } = useAuth()
 
   if (setupLoading || authLoading) return <Spinner />
   if (setupStatus?.needsSetup) return <Navigate to="/setup" replace />
   if (!user) return <Navigate to="/" replace />
+  if (allow && !allow.includes(user.role)) return <Navigate to={landingPath(user.role)} replace />
 
   return <AppShell>{children}</AppShell>
 }
@@ -87,19 +91,20 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/portfolios" element={<ProtectedRoute><Portfolios /></ProtectedRoute>} />
-      <Route path="/portfolios/:id" element={<ProtectedRoute><PortfolioDetail /></ProtectedRoute>} />
-      <Route path="/programs" element={<ProtectedRoute><Programs /></ProtectedRoute>} />
-      <Route path="/programs/:id" element={<ProtectedRoute><ProgramDetail /></ProtectedRoute>} />
-      <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-      <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
-      <Route path="/resources" element={<ProtectedRoute><Resources /></ProtectedRoute>} />
-      <Route path="/timesheet" element={<ProtectedRoute><Timesheet /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-      <Route path="/ideas" element={<ProtectedRoute><Ideas /></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/my-work" element={<ProtectedRoute allow={ROUTE_ACCESS['/my-work']}><MyWork /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute allow={ROUTE_ACCESS['/dashboard']}><Dashboard /></ProtectedRoute>} />
+      <Route path="/portfolios" element={<ProtectedRoute allow={ROUTE_ACCESS['/portfolios']}><Portfolios /></ProtectedRoute>} />
+      <Route path="/portfolios/:id" element={<ProtectedRoute allow={ROUTE_ACCESS['/portfolios']}><PortfolioDetail /></ProtectedRoute>} />
+      <Route path="/programs" element={<ProtectedRoute allow={ROUTE_ACCESS['/programs']}><Programs /></ProtectedRoute>} />
+      <Route path="/programs/:id" element={<ProtectedRoute allow={ROUTE_ACCESS['/programs']}><ProgramDetail /></ProtectedRoute>} />
+      <Route path="/projects" element={<ProtectedRoute allow={ROUTE_ACCESS['/projects']}><Projects /></ProtectedRoute>} />
+      <Route path="/projects/:id" element={<ProtectedRoute allow={ROUTE_ACCESS['/projects']}><ProjectDetail /></ProtectedRoute>} />
+      <Route path="/resources" element={<ProtectedRoute allow={ROUTE_ACCESS['/resources']}><Resources /></ProtectedRoute>} />
+      <Route path="/timesheet" element={<ProtectedRoute allow={ROUTE_ACCESS['/timesheet']}><Timesheet /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute allow={ROUTE_ACCESS['/reports']}><Reports /></ProtectedRoute>} />
+      <Route path="/ideas" element={<ProtectedRoute allow={ROUTE_ACCESS['/ideas']}><Ideas /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute allow={ROUTE_ACCESS['/notifications']}><Notifications /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute allow={ROUTE_ACCESS['/settings']}><Settings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
