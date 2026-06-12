@@ -26,8 +26,14 @@ crons = ["0 * * * *"]
 ENVIRONMENT = "production"
 JWT_EXPIRY = "86400"
 ASANA_REDIRECT_URI = "https://ppm-worker.almazor-schwab.workers.dev/api/import/asana/callback"
+# Email (non-secret). Sending stays disabled until RESEND_API_KEY secret is set.
+EMAIL_FROM = "PPM Tool <onboarding@resend.dev>"
+APP_URL = "https://ppm-tool.pages.dev"
+SIGNUP_NOTIFY_EMAIL = ""
 
 # Secrets — set via wrangler CLI:
 #   wrangler secret put JWT_SECRET
+#   wrangler secret put JWT_SECRET_PREVIOUS   (during rotation only)
 #   wrangler secret put ASANA_CLIENT_ID
 #   wrangler secret put ASANA_CLIENT_SECRET
+#   wrangler secret put RESEND_API_KEY        (enables email sending)

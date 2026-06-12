@@ -7,6 +7,7 @@ import { authMiddleware, verifyToken } from '../middleware/auth'
 import { requireAny } from '../middleware/rbac'
 import { hashPassword, verifyPassword } from '../utils/password'
 import { generateSecret, verifyTotp, otpauthUri, genBackupCodes, sha256Hex } from '../utils/totp'
+import { sendEmail, welcomeEmail, signupNotifyEmail, appLoginUrl } from '../services/emailService'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -352,6 +353,9 @@ authRoutes.post('/setup', async (c) => {
   c.header('Set-Cookie', setCookieHeader(token, expiry, c.env.ENVIRONMENT === 'production'))
   await logAuthEvent(c.env.DB, { orgId: admin.org_id, userId: admin.id, email, eventType: 'login_success', ip: clientIp(c), userAgent: userAgent(c) })
 
+  // Welcome email (fire-and-forget; no-op if email not configured).
+  c.executionCtx.waitUntil(sendEmail(c.env, { to: email, ...welcomeEmail({ name: fullName, orgName: orgName ?? 'your workspace', loginUrl: appLoginUrl(c.env) }) }))
+
   return c.json({ id: admin.id, email, fullName, role: 'admin', orgId: admin.org_id })
 })
 
@@ -399,6 +403,13 @@ authRoutes.post('/register', async (c) => {
   const expiry = parseInt(c.env.JWT_EXPIRY, 10)
   const token = await issueToken(c.env.JWT_SECRET, c.env.JWT_EXPIRY, userId, email, 'admin', orgId, 0)
   c.header('Set-Cookie', setCookieHeader(token, expiry, c.env.ENVIRONMENT === 'production'))
+
+  // Welcome the new admin + notify the system address of a new signup (fire-and-forget).
+  const loginUrl = appLoginUrl(c.env)
+  c.executionCtx.waitUntil(sendEmail(c.env, { to: email, ...welcomeEmail({ name: fullName, orgName: orgName ?? 'My Organization', loginUrl }) }))
+  if (c.env.SIGNUP_NOTIFY_EMAIL) {
+    c.executionCtx.waitUntil(sendEmail(c.env, { to: c.env.SIGNUP_NOTIFY_EMAIL, ...signupNotifyEmail({ orgName: orgName ?? 'My Organization', email }) }))
+  }
 
   return c.json({ id: userId, email, fullName, role: 'admin', orgId })
 })

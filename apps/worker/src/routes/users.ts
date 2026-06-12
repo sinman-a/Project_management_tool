@@ -4,6 +4,7 @@ import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { hashPassword } from '../utils/password'
 import { setSessionCookie } from './auth'
+import { sendEmail, inviteEmail, appLoginUrl } from '../services/emailService'
 
 const ROLES = ['admin', 'program_manager', 'pmo_lead', 'project_manager', 'team_member', 'sponsor', 'viewer'] as const
 
@@ -75,6 +76,19 @@ userRoutes.post('/', requireAny('admin'), async (c) => {
   )
     .bind(id)
     .first()
+
+  // Invite email (fire-and-forget; no-op if email not configured).
+  const orgRow = await c.env.DB.prepare('SELECT name FROM organizations WHERE id = ?').bind(caller.orgId).first<{ name: string }>()
+  const inviter = await c.env.DB.prepare('SELECT full_name FROM users WHERE id = ?').bind(caller.sub).first<{ full_name: string }>()
+  c.executionCtx.waitUntil(sendEmail(c.env, {
+    to: email,
+    ...inviteEmail({
+      name: fullName,
+      orgName: orgRow?.name ?? 'your workspace',
+      inviterName: inviter?.full_name ?? 'An administrator',
+      loginUrl: appLoginUrl(c.env),
+    }),
+  }))
 
   return c.json(toCamel(user!), 201)
 })

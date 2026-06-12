@@ -11,6 +11,11 @@ export interface Env {
   ASANA_CLIENT_ID: string
   ASANA_CLIENT_SECRET: string
   ASANA_REDIRECT_URI: string
+  // Email (Resend). Sending is a no-op when RESEND_API_KEY/EMAIL_FROM are unset.
+  RESEND_API_KEY?: string
+  EMAIL_FROM?: string
+  APP_URL?: string
+  SIGNUP_NOTIFY_EMAIL?: string
 }
 
 export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member' | 'pmo_lead' | 'sponsor' | 'viewer'
