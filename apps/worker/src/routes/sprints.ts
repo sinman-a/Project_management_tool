@@ -2,15 +2,17 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg } from '../middleware/ownership'
+import { projectInOrg, canManageProject } from '../middleware/ownership'
+import type { JwtPayload } from '../types'
 
-/** Verify a sprint belongs to the caller's org (sprint → project → org). */
-async function sprintInOrg(db: D1Database, sprintId: string, orgId: string): Promise<boolean> {
+/** Resolve a sprint's project (in-org) and verify the caller may manage it. */
+async function canManageSprint(db: D1Database, user: JwtPayload, sprintId: string): Promise<boolean> {
   const row = await db.prepare(`
-    SELECT 1 FROM sprints s JOIN projects p ON p.id = s.project_id
+    SELECT s.project_id FROM sprints s JOIN projects p ON p.id = s.project_id
     WHERE s.id = ? AND p.org_id = ?
-  `).bind(sprintId, orgId).first()
-  return !!row
+  `).bind(sprintId, user.orgId).first<{ project_id: string }>()
+  if (!row) return false
+  return canManageProject(db, user, row.project_id)
 }
 
 const sprintSchema = z.object({
@@ -50,7 +52,7 @@ sprintRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'proje
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
   const { projectId, name, goal, startDate, endDate, status, velocity } = parsed.data
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
@@ -65,7 +67,7 @@ sprintRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'proje
 sprintRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
-  if (!(await sprintInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageSprint(c.env.DB, user, id))) return c.json({ message: 'Not found' }, 404)
   const body = await c.req.json()
   const allowed = ['name', 'goal', 'start_date', 'end_date', 'status', 'velocity']
 
@@ -86,7 +88,7 @@ sprintRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'p
 sprintRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
-  if (!(await sprintInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageSprint(c.env.DB, user, id))) return c.json({ message: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM sprints WHERE id = ?').bind(id).run()
   return c.json({ success: true })
 })

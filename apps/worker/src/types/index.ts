@@ -4,6 +4,7 @@ export interface Env {
   DB: D1Database
   KV_CACHE: KVNamespace
   JWT_SECRET: string
+  JWT_SECRET_PREVIOUS?: string
   JWT_EXPIRY: string
   ENVIRONMENT: string
   // Asana OAuth (set via: wrangler secret put ASANA_CLIENT_ID / ASANA_CLIENT_SECRET)
@@ -19,6 +20,8 @@ export interface JwtPayload {
   email: string
   role: UserRole
   orgId: string
+  tv: number          // token version (session epoch) — must match users.token_version
+  jti?: string        // unique token id
   iat: number
   exp: number
 }

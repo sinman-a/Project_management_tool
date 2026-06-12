@@ -5,7 +5,7 @@ import { requireAny } from '../middleware/rbac'
 import { recalculateProjectBudget } from '../services/budgetService'
 import { computeCPM, CycleError } from '../services/cpmService'
 import { suggestRAGs } from '../services/suggestionService'
-import { projectInOrg, canAccessProject } from '../middleware/ownership'
+import { canAccessProject, canManageProject } from '../middleware/ownership'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -171,7 +171,7 @@ projectRoutes.get('/:id/budget/history', async (c) => {
 projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   try {
     const result = await recalculateProjectBudget(c.env.DB, c.env.KV_CACHE, projectId)
     return c.json(result)

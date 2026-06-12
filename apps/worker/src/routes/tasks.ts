@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg, resourceInOrg, canAccessProject } from '../middleware/ownership'
+import { projectInOrg, resourceInOrg, canAccessProject, canManageProject, canManageTask } from '../middleware/ownership'
 
 /** Verify a task belongs to the caller's org (task → project → org). */
 async function taskInOrg(db: D1Database, taskId: string, orgId: string): Promise<boolean> {
@@ -91,7 +91,7 @@ taskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project
     status, priority, assignedTo, storyPoints, estimatedHours,
     startDate, dueDate, costType, wbsCode,
   } = parsed.data
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
@@ -120,7 +120,14 @@ taskRoutes.patch('/:id', async (c) => {
   `).bind(id, user.orgId).first<{ assigned_to: string | null; project_id: string; estimated_hours: number; due_date: string | null }>()
   if (!task) return c.json({ message: 'Not found' }, 404)
 
+  // Read-only roles cannot edit tasks.
+  if (user.role === 'sponsor' || user.role === 'viewer') return c.json({ message: 'Forbidden' }, 403)
+  // team_member: only their own task (status only, enforced below).
   if (user.role === 'team_member' && task.assigned_to !== user.sub) {
+    return c.json({ message: 'Forbidden' }, 403)
+  }
+  // project_manager: only tasks within a project they manage.
+  if (user.role === 'project_manager' && !(await canManageProject(c.env.DB, user, task.project_id))) {
     return c.json({ message: 'Forbidden' }, 403)
   }
 
@@ -172,7 +179,7 @@ taskRoutes.patch('/:id', async (c) => {
 taskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
-  if (!(await taskInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageTask(c.env.DB, user, id))) return c.json({ message: 'Not found' }, 404)
   await c.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run()
   return c.json({ success: true })
 })
@@ -199,8 +206,8 @@ taskRoutes.post('/:id/dependencies', requireAny('admin', 'program_manager', 'pmo
 
   if (taskId === parsed.data.dependsOnId) return c.json({ message: 'Task cannot depend on itself' }, 400)
 
-  // Both the task and its predecessor must belong to the caller's org
-  if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  // Caller must be able to manage the dependent task; predecessor must be in-org.
+  if (!(await canManageTask(c.env.DB, user, taskId))) return c.json({ message: 'Not found' }, 404)
   if (!(await taskInOrg(c.env.DB, parsed.data.dependsOnId, user.orgId))) return c.json({ message: 'Invalid dependency' }, 400)
 
   const id = crypto.randomUUID()
@@ -265,7 +272,7 @@ taskRoutes.get('/:id/assignments', async (c) => {
 taskRoutes.post('/:id/assignments', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const taskId = c.req.param('id')
-  if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageTask(c.env.DB, user, taskId))) return c.json({ message: 'Not found' }, 404)
 
   const body = await c.req.json()
   const parsed = z.object({

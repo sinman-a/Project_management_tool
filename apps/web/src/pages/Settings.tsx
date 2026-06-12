@@ -7,6 +7,8 @@ import { useStrategicThemes, useCreateTheme, useDeleteTheme } from '@/hooks/useI
 import { useAuthStore } from '@/stores/authStore'
 import { UserForm } from '@/components/users/UserForm'
 import { ImportSection } from '@/components/settings/ImportSection'
+import { SecurityCard } from '@/components/settings/SecurityCard'
+import { AuthAuditCard } from '@/components/settings/AuthAuditCard'
 import { StrategicDriversCard } from '@/components/settings/StrategicDriversCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -443,6 +445,12 @@ export function Settings() {
 
       {/* Import */}
       {isAdmin && <ImportSection />}
+
+      {/* Security — change password, 2FA, sessions (all users) */}
+      <SecurityCard />
+
+      {/* Login audit log (admin only) */}
+      {isAdmin && <AuthAuditCard />}
 
       {/* Team Members */}
       <Card>

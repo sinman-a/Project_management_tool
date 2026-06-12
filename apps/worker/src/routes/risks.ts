@@ -1,19 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg, canAccessProject, canAccessProgram } from '../middleware/ownership'
-
-/** Verify a risk belongs to the caller's org (risk → project → org). */
-async function riskInOrg(db: D1Database, riskId: string, orgId: string): Promise<boolean> {
-  const row = await db.prepare(`
-    SELECT 1 FROM risks r
-    JOIN projects p ON p.id = r.project_id
-    WHERE r.id = ? AND p.org_id = ?
-  `).bind(riskId, orgId).first()
-  return !!row
-}
+import { canAccessProject, canAccessProgram, canManageProject } from '../middleware/ownership'
 
 const riskSchema = z.object({
   projectId: z.string().uuid(),
@@ -143,7 +132,7 @@ riskRoutes.post('/', requireAny('admin', 'program_manager', 'pmo_lead', 'project
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
   const d = parsed.data
-  if (!(await projectInOrg(c.env.DB, d.projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, d.projectId))) return c.json({ message: 'Not found' }, 404)
   const score = d.probability * d.impact
   const band = scoreBand(score)
 
@@ -189,6 +178,7 @@ riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'pro
     WHERE r.id = ? AND p.org_id = ? AND r.deleted_at IS NULL
   `).bind(id, user.orgId).first<Record<string, unknown>>()
   if (!existing) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, existing.project_id as string))) return c.json({ message: 'Forbidden' }, 403)
 
   const body = await c.req.json()
   const patchSchema = riskSchema.partial().omit({ projectId: true })
@@ -252,7 +242,12 @@ riskRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'pro
 riskRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead', 'project_manager'), async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
-  if (!(await riskInOrg(c.env.DB, id, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  const risk = await c.env.DB.prepare(`
+    SELECT r.project_id FROM risks r JOIN projects p ON p.id = r.project_id
+    WHERE r.id = ? AND p.org_id = ?
+  `).bind(id, user.orgId).first<{ project_id: string }>()
+  if (!risk) return c.json({ message: 'Not found' }, 404)
+  if (!(await canManageProject(c.env.DB, user, risk.project_id))) return c.json({ message: 'Forbidden' }, 403)
   await c.env.DB.prepare(
     `UPDATE risks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`,
   ).bind(id).run()

@@ -19,6 +19,29 @@ export async function taskInOrg(db: D1Database, taskId: string, orgId: string): 
 // Roles with org-wide read (oversight / executive). Others are scoped to their own work.
 const ORG_WIDE_READ = new Set(['admin', 'pmo_lead', 'sponsor', 'viewer', 'program_manager'])
 
+// Roles that may WRITE to any project in their org. project_manager is scoped to
+// projects they manage; everyone else is denied (role gate happens before this).
+const ORG_WIDE_WRITE = new Set(['admin', 'program_manager', 'pmo_lead'])
+
+/** Write authorization for a project: oversight roles org-wide, project_manager → own. */
+export async function canManageProject(db: D1Database, user: JwtPayload, projectId: string): Promise<boolean> {
+  if (!(await projectInOrg(db, projectId, user.orgId))) return false
+  if (ORG_WIDE_WRITE.has(user.role)) return true
+  if (user.role === 'project_manager') {
+    const row = await db.prepare('SELECT 1 FROM projects WHERE id = ? AND manager_id = ?')
+      .bind(projectId, user.sub).first()
+    return !!row
+  }
+  return false
+}
+
+/** Write authorization for a task (task → project). */
+export async function canManageTask(db: D1Database, user: JwtPayload, taskId: string): Promise<boolean> {
+  const row = await db.prepare('SELECT project_id FROM tasks WHERE id = ?').bind(taskId).first<{ project_id: string }>()
+  if (!row) return false
+  return canManageProject(db, user, row.project_id)
+}
+
 /**
  * Per-entity read authorization for a single project.
  * - Oversight roles: any project in their org.

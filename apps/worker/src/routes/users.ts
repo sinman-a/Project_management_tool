@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { hashPassword } from '../utils/password'
+import { setSessionCookie } from './auth'
 
 const ROLES = ['admin', 'program_manager', 'pmo_lead', 'project_manager', 'team_member', 'sponsor', 'viewer'] as const
 
@@ -123,8 +124,12 @@ userRoutes.patch('/:id', requireAny('admin'), async (c) => {
 
   if (updates.length === 0) return c.json({ message: 'No valid fields' }, 400)
 
+  // Security-relevant changes revoke the target user's existing sessions.
+  const revokes = parsed.data.role !== undefined || parsed.data.isActive !== undefined || parsed.data.password !== undefined
+  const rawClause = revokes ? ', token_version = token_version + 1' : ''
+
   const setClauses = updates.map(([k]) => `${k} = ?`).join(', ')
-  await c.env.DB.prepare(`UPDATE users SET ${setClauses} WHERE id = ?`)
+  await c.env.DB.prepare(`UPDATE users SET ${setClauses}${rawClause} WHERE id = ?`)
     .bind(...updates.map(([, v]) => v), id)
     .run()
 
@@ -156,10 +161,25 @@ userRoutes.post('/me/change-password', async (c) => {
   if (!valid) return c.json({ message: 'Current password incorrect' }, 401)
 
   const newHash = await hashPassword(parsed.data.newPassword)
-  await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+  // Revoke all other sessions, then re-mint this one so the caller stays logged in.
+  await c.env.DB.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?')
     .bind(newHash, caller.sub)
     .run()
+  const fresh = await c.env.DB.prepare('SELECT token_version FROM users WHERE id = ?')
+    .bind(caller.sub).first<{ token_version: number }>()
+  await setSessionCookie(c, { id: caller.sub, email: caller.email, role: caller.role, orgId: caller.orgId, tokenVersion: fresh!.token_version })
 
+  return c.json({ ok: true })
+})
+
+// Admin: force-logout a user by revoking all their sessions.
+userRoutes.post('/:id/revoke-sessions', requireAny('admin'), async (c) => {
+  const caller = c.get('user')
+  const { id } = c.req.param()
+  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ? AND org_id = ?')
+    .bind(id, caller.orgId).first()
+  if (!user) return c.json({ message: 'Not found' }, 404)
+  await c.env.DB.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').bind(id).run()
   return c.json({ ok: true })
 })
 

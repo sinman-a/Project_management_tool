@@ -305,6 +305,17 @@ export interface AuthUser {
   fullName: string
   role: UserRole
   orgId: string
+  twoFactorEnabled?: boolean
+}
+
+export interface AuthEvent {
+  id: string
+  userId: string | null
+  email: string | null
+  eventType: string
+  ip: string | null
+  userAgent: string | null
+  createdAt: string
 }
 
 // ============================================================
