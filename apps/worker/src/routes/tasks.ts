@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg, resourceInOrg } from '../middleware/ownership'
+import { projectInOrg, resourceInOrg, canAccessProject } from '../middleware/ownership'
 
 /** Verify a task belongs to the caller's org (task → project → org). */
 async function taskInOrg(db: D1Database, taskId: string, orgId: string): Promise<boolean> {
@@ -67,7 +67,7 @@ taskRoutes.get('/', async (c) => {
   const user = c.get('user')
   const projectId = c.req.query('projectId')
   if (!projectId) return c.json({ message: 'projectId required' }, 400)
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(
     `SELECT t.*, u.full_name as assignee_name

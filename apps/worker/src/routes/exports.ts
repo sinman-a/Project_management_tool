@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { HonoContext } from '../types'
 import { buildXlsx, xlsxResponse } from '../services/xlsxService'
+import { canAccessProject, canAccessProgram } from '../middleware/ownership'
 
 export const exportRoutes = new Hono<HonoContext>()
 
@@ -12,7 +13,9 @@ function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
 
 // GET /projects/:id/export/risks
 exportRoutes.get('/projects/:id/export/risks', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT r.risk_number, r.title, r.category, r.probability, r.impact, r.score,
            r.score_band, r.status, u.full_name as owner, r.response_strategy,
@@ -53,7 +56,9 @@ exportRoutes.get('/projects/:id/export/risks', async (c) => {
 
 // GET /projects/:id/export/wbs
 exportRoutes.get('/projects/:id/export/wbs', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT t.wbs_code, t.name, t.type, t.status, t.priority,
            t.estimated_hours, t.start_date, t.due_date,
@@ -89,7 +94,9 @@ exportRoutes.get('/projects/:id/export/wbs', async (c) => {
 
 // GET /projects/:id/export/time-logs?status=approved|pending|all
 exportRoutes.get('/projects/:id/export/time-logs', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const status = c.req.query('status') ?? 'all'
 
   let approvedFilter = ''
@@ -133,7 +140,9 @@ exportRoutes.get('/projects/:id/export/time-logs', async (c) => {
 
 // GET /projects/:id/export/rice
 exportRoutes.get('/projects/:id/export/rice', async (c) => {
+  const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT ri.milestone, ri.goal, ri.business_value, ri.user_story,
            ri.reach, ri.impact, ri.confidence, ri.effort, ri.rice_score,
@@ -170,7 +179,9 @@ exportRoutes.get('/projects/:id/export/rice', async (c) => {
 
 // GET /programs/:id/export/status-reports
 exportRoutes.get('/programs/:id/export/status-reports', async (c) => {
+  const user = c.get('user')
   const programId = c.req.param('id')
+  if (!(await canAccessProgram(c.env.DB, user, programId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT sr.report_date, p.name as project_name, u.full_name as author,
            sr.overall_status, sr.schedule_status, sr.budget_status, sr.scope_status,

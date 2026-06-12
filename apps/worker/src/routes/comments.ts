@@ -1,8 +1,25 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { HonoContext } from '../types'
+import type { HonoContext, JwtPayload } from '../types'
 import { requireAny } from '../middleware/rbac'
 import { createNotification } from '../services/notificationService'
+import { canAccessProject, canAccessProgram } from '../middleware/ownership'
+
+/**
+ * Per-entity access check for comment threads & activity.
+ * project/task entities are scoped to the caller's project access; other entity
+ * types (risk, idea, status_report) remain org-scoped (validated by org_id elsewhere).
+ * Returns false only when we can resolve a project the caller may NOT access.
+ */
+async function canAccessEntity(db: D1Database, user: JwtPayload, entityType: string, entityId: string): Promise<boolean> {
+  if (entityType === 'project') return canAccessProject(db, user, entityId)
+  if (entityType === 'task') {
+    const row = await db.prepare('SELECT project_id FROM tasks WHERE id = ?').bind(entityId).first<{ project_id: string }>()
+    if (!row) return true // unknown/foreign id → org filter on the query handles isolation
+    return canAccessProject(db, user, row.project_id)
+  }
+  return true
+}
 
 const commentSchema = z.object({
   entityType: z.enum(['project', 'task', 'status_report', 'risk', 'idea']),
@@ -22,6 +39,7 @@ commentRoutes.get('/', async (c) => {
   if (!entityType || !entityId) {
     return c.json({ message: 'entityType and entityId required' }, 400)
   }
+  if (!(await canAccessEntity(c.env.DB, user, entityType, entityId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(`
     SELECT cm.*, u.full_name as author_name, u.email as author_email
@@ -43,6 +61,7 @@ commentRoutes.post('/', async (c) => {
   if (!parsed.success) return c.json({ message: 'Invalid input', errors: parsed.error.flatten() }, 400)
 
   const { entityType, entityId, body: commentBody, parentCommentId } = parsed.data
+  if (!(await canAccessEntity(c.env.DB, user, entityType, entityId))) return c.json({ message: 'Not found' }, 404)
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare(`
@@ -173,6 +192,7 @@ export const activityRoutes = new Hono<HonoContext>()
 activityRoutes.get('/projects/:id/activity', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const eventType = c.req.query('eventType')
   const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200)
   const offset = parseInt(c.req.query('offset') ?? '0', 10)
@@ -200,6 +220,7 @@ activityRoutes.get('/projects/:id/activity', async (c) => {
 activityRoutes.get('/programs/:id/activity', async (c) => {
   const user = c.get('user')
   const programId = c.req.param('id')
+  if (!(await canAccessProgram(c.env.DB, user, programId))) return c.json({ message: 'Not found' }, 404)
   const eventType = c.req.query('eventType')
   const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200)
 

@@ -16,7 +16,8 @@ export const authMiddleware: MiddlewareHandler<HonoContext> = async (c, next) =>
 
   try {
     const secret = new TextEncoder().encode(c.env.JWT_SECRET)
-    const { payload } = await jwtVerify(token, secret)
+    // Pin the algorithm — reject tokens that try to use a different alg (e.g. "none").
+    const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] })
     c.set('user', payload as unknown as JwtPayload)
     await next()
   } catch {

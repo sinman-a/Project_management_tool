@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense, type ComponentType } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useSetupStatus } from '@/hooks/useUsers'
@@ -9,24 +9,30 @@ import type { UserRole } from '@/types'
 import { TopNav } from '@/components/layout/TopNav'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { HealthBar } from '@/components/layout/HealthBar'
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
+// Entry pages stay eager (needed on first paint); authenticated pages are code-split.
 import { Login } from '@/pages/Login'
 import { Setup } from '@/pages/Setup'
 import { Register } from '@/pages/Register'
-import { Dashboard } from '@/pages/Dashboard'
-import { Settings } from '@/pages/Settings'
-import { Programs } from '@/pages/Programs'
-import { ProgramDetail } from '@/pages/ProgramDetail'
-import { Portfolios } from '@/pages/Portfolios'
-import { PortfolioDetail } from '@/pages/PortfolioDetail'
-import { Projects } from '@/pages/Projects'
-import { ProjectDetail } from '@/pages/ProjectDetail'
-import { Resources } from '@/pages/Resources'
-import { Timesheet } from '@/pages/Timesheet'
-import { Reports } from '@/pages/Reports'
-import { Ideas } from '@/pages/Ideas'
-import { Notifications } from '@/pages/Notifications'
-import { MyWork } from '@/pages/MyWork'
 import { Landing } from '@/pages/Landing'
+
+const named = (p: Promise<Record<string, unknown>>, name: string) =>
+  p.then((m) => ({ default: m[name] as ComponentType }))
+
+const Dashboard = lazy(() => named(import('@/pages/Dashboard'), 'Dashboard'))
+const Settings = lazy(() => named(import('@/pages/Settings'), 'Settings'))
+const Programs = lazy(() => named(import('@/pages/Programs'), 'Programs'))
+const ProgramDetail = lazy(() => named(import('@/pages/ProgramDetail'), 'ProgramDetail'))
+const Portfolios = lazy(() => named(import('@/pages/Portfolios'), 'Portfolios'))
+const PortfolioDetail = lazy(() => named(import('@/pages/PortfolioDetail'), 'PortfolioDetail'))
+const Projects = lazy(() => named(import('@/pages/Projects'), 'Projects'))
+const ProjectDetail = lazy(() => named(import('@/pages/ProjectDetail'), 'ProjectDetail'))
+const Resources = lazy(() => named(import('@/pages/Resources'), 'Resources'))
+const Timesheet = lazy(() => named(import('@/pages/Timesheet'), 'Timesheet'))
+const Reports = lazy(() => named(import('@/pages/Reports'), 'Reports'))
+const Ideas = lazy(() => named(import('@/pages/Ideas'), 'Ideas'))
+const Notifications = lazy(() => named(import('@/pages/Notifications'), 'Notifications'))
+const MyWork = lazy(() => named(import('@/pages/MyWork'), 'MyWork'))
 
 function OrgCurrencyLoader() {
   const { data: org } = useOrgSettings()
@@ -47,7 +53,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <HealthBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto">{children}</main>
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto">
+          <Suspense fallback={<Spinner />}>{children}</Suspense>
+        </main>
       </div>
     </div>
   )
@@ -85,6 +93,7 @@ function ProtectedRoute({ children, allow }: { children: React.ReactNode; allow?
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/setup" element={<Setup />} />
@@ -108,5 +117,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ErrorBoundary>
   )
 }

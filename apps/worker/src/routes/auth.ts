@@ -46,15 +46,17 @@ function setCookieHeader(token: string, expiry: number, isProduction: boolean): 
 // ── Brute-force rate limiting (KV-backed) ────────────────────────────────────
 const MAX_ATTEMPTS = 10
 const WINDOW_SECONDS = 15 * 60
+// Account-creation endpoints (register/setup) are unauthenticated — keep a tighter cap.
+const MAX_SIGNUPS = 5
 
 function clientIp(c: { req: { header: (k: string) => string | undefined } }): string {
   return c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown'
 }
 
-/** Returns true if the caller is over the attempt limit. */
-async function isRateLimited(kv: KVNamespace, key: string): Promise<boolean> {
+/** Returns true if the caller is over the given attempt limit. */
+async function isRateLimited(kv: KVNamespace, key: string, max = MAX_ATTEMPTS): Promise<boolean> {
   const raw = await kv.get(key)
-  return raw !== null && parseInt(raw, 10) >= MAX_ATTEMPTS
+  return raw !== null && parseInt(raw, 10) >= max
 }
 
 async function recordFailure(kv: KVNamespace, key: string): Promise<void> {
@@ -146,6 +148,12 @@ authRoutes.get('/me', authMiddleware, async (c) => {
 
 // First-run setup — works only when no real account exists yet
 authRoutes.post('/setup', async (c) => {
+  const rlKey = `signup_attempts:${clientIp(c)}`
+  if (await isRateLimited(c.env.KV_CACHE, rlKey, MAX_SIGNUPS)) {
+    return c.json({ message: 'Too many attempts. Please try again later.' }, 429)
+  }
+  await recordFailure(c.env.KV_CACHE, rlKey)
+
   // Abort entirely if ANY real (non-placeholder) active user already exists.
   // Prevents re-trigger and races once the system is in use.
   const realUsers = await c.env.DB.prepare(
@@ -198,6 +206,12 @@ authRoutes.get('/setup/status', async (c) => {
 
 // Public registration — creates a new independent org + admin account
 authRoutes.post('/register', async (c) => {
+  const rlKey = `signup_attempts:${clientIp(c)}`
+  if (await isRateLimited(c.env.KV_CACHE, rlKey, MAX_SIGNUPS)) {
+    return c.json({ message: 'Too many attempts. Please try again later.' }, 429)
+  }
+  await recordFailure(c.env.KV_CACHE, rlKey)
+
   const body = await c.req.json()
   const parsed = setupSchema.safeParse(body)
   if (!parsed.success) {

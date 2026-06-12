@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext } from '../types'
+import { taskInOrg, canAccessProject } from '../middleware/ownership'
 
 const LINK_TYPES = ['parent', 'child', 'related', 'duplicate', 'predecessor', 'successor'] as const
 
@@ -14,6 +15,7 @@ export const taskLinkRoutes = new Hono<HonoContext>()
 
 // GET /api/task-links?taskId=  OR  ?projectId=
 taskLinkRoutes.get('/', async (c) => {
+  const user = c.get('user')
   const taskId = c.req.query('taskId')
   const projectId = c.req.query('projectId')
 
@@ -21,6 +23,8 @@ taskLinkRoutes.get('/', async (c) => {
 
   let results: unknown[]
   if (taskId) {
+    if (!(await taskInOrg(c.env.DB, taskId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+    // Org-scoped on both sides — links must connect tasks within the caller's org.
     const { results: rows } = await c.env.DB.prepare(`
       SELECT tl.*,
         st.name as source_name, st.project_id as source_project_id,
@@ -28,11 +32,15 @@ taskLinkRoutes.get('/', async (c) => {
       FROM task_links tl
       JOIN tasks st ON st.id = tl.source_task_id
       JOIN tasks tt ON tt.id = tl.target_task_id
-      WHERE tl.source_task_id = ? OR tl.target_task_id = ?
+      JOIN projects sp ON sp.id = st.project_id
+      JOIN projects tp ON tp.id = tt.project_id
+      WHERE (tl.source_task_id = ? OR tl.target_task_id = ?)
+        AND sp.org_id = ? AND tp.org_id = ?
       ORDER BY tl.created_at ASC
-    `).bind(taskId, taskId).all()
+    `).bind(taskId, taskId, user.orgId, user.orgId).all()
     results = rows
   } else {
+    if (!(await canAccessProject(c.env.DB, user, projectId!))) return c.json({ message: 'Not found' }, 404)
     const { results: rows } = await c.env.DB.prepare(`
       SELECT tl.*,
         st.name as source_name, st.start_date as source_start, st.due_date as source_due,
@@ -40,9 +48,12 @@ taskLinkRoutes.get('/', async (c) => {
       FROM task_links tl
       JOIN tasks st ON st.id = tl.source_task_id
       JOIN tasks tt ON tt.id = tl.target_task_id
-      WHERE st.project_id = ? OR tt.project_id = ?
+      JOIN projects sp ON sp.id = st.project_id
+      JOIN projects tp ON tp.id = tt.project_id
+      WHERE (st.project_id = ? OR tt.project_id = ?)
+        AND sp.org_id = ? AND tp.org_id = ?
       ORDER BY tl.created_at ASC
-    `).bind(projectId, projectId).all()
+    `).bind(projectId, projectId, user.orgId, user.orgId).all()
     results = rows
   }
 
@@ -57,6 +68,11 @@ taskLinkRoutes.post('/', async (c) => {
 
   const { sourceTaskId, targetTaskId, linkType } = parsed.data
   if (sourceTaskId === targetTaskId) return c.json({ message: 'Cannot link a task to itself' }, 400)
+
+  // Both tasks must belong to the caller's org.
+  if (!(await taskInOrg(c.env.DB, sourceTaskId, user.orgId)) || !(await taskInOrg(c.env.DB, targetTaskId, user.orgId))) {
+    return c.json({ message: 'Not found' }, 404)
+  }
 
   const id = crypto.randomUUID()
   try {

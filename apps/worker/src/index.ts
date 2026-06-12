@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { secureHeaders } from 'hono/secure-headers'
 import type { HonoContext } from './types'
 import { corsMiddleware } from './middleware/cors'
 import { authMiddleware } from './middleware/auth'
@@ -42,6 +43,14 @@ import { analyticsRoutes } from './routes/analytics'
 
 const app = new Hono<HonoContext>()
 
+// Security headers on every API response (nosniff, no-framing, referrer policy, HSTS).
+app.use('*', secureHeaders({
+  xFrameOptions: 'DENY',
+  xContentTypeOptions: 'nosniff',
+  referrerPolicy: 'strict-origin-when-cross-origin',
+  strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+  crossOriginResourcePolicy: 'same-site',
+}))
 app.use('*', corsMiddleware)
 
 app.get('/api/health', (c) => c.json({ status: 'ok', ts: new Date().toISOString() }))

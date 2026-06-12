@@ -659,8 +659,10 @@ importRoutes.post('/entities', async (c) => {
     return c.json({ message: 'Forbidden' }, 403)
   }
 
+  const MAX_ROWS = 2000
   const rows = parseCSV(csvText)
   if (rows.length === 0) return c.json({ message: 'No data rows found.' }, 422)
+  if (rows.length > MAX_ROWS) return c.json({ message: `Too many rows (max ${MAX_ROWS}). Split the file and retry.` }, 422)
 
   const schema = entitySchemas[entityType]
   const today = new Date().toISOString().slice(0, 10)

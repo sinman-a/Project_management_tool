@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { D1Database } from '@cloudflare/workers-types'
 import type { HonoContext } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { projectInOrg, programInOrg } from '../middleware/ownership'
+import { projectInOrg, canAccessProject, canAccessProgram } from '../middleware/ownership'
 
 /** Verify a risk belongs to the caller's org (risk → project → org). */
 async function riskInOrg(db: D1Database, riskId: string, orgId: string): Promise<boolean> {
@@ -48,8 +48,8 @@ riskRoutes.get('/heatmap', async (c) => {
   const projectId = c.req.query('projectId')
   const programId = c.req.query('programId')
 
-  if (programId && !(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
-  if (projectId && !(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (programId && !(await canAccessProgram(c.env.DB, user, programId))) return c.json({ message: 'Not found' }, 404)
+  if (projectId && !(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
 
   let query: string
   let params: string[]
@@ -80,7 +80,7 @@ riskRoutes.get('/top', async (c) => {
   const projectId = c.req.query('projectId')
   const n = Math.min(parseInt(c.req.query('n') ?? '3', 10), 10)
   if (!projectId) return c.json({ message: 'projectId required' }, 400)
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
 
   const { results } = await c.env.DB.prepare(`
     SELECT r.*, u.full_name as owner_name
@@ -106,11 +106,11 @@ riskRoutes.get('/', async (c) => {
   const params: unknown[] = []
 
   if (projectId) {
-    if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+    if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
     where += ' AND r.project_id = ?'
     params.push(projectId)
   } else if (programId) {
-    if (!(await programInOrg(c.env.DB, programId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+    if (!(await canAccessProgram(c.env.DB, user, programId))) return c.json({ message: 'Not found' }, 404)
     where += ' AND r.project_id IN (SELECT id FROM projects WHERE program_id = ?)'
     params.push(programId)
   } else {

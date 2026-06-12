@@ -5,7 +5,7 @@ import { requireAny } from '../middleware/rbac'
 import { recalculateProjectBudget } from '../services/budgetService'
 import { computeCPM, CycleError } from '../services/cpmService'
 import { suggestRAGs } from '../services/suggestionService'
-import { projectInOrg } from '../middleware/ownership'
+import { projectInOrg, canAccessProject } from '../middleware/ownership'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -70,6 +70,7 @@ projectRoutes.get('/', async (c) => {
 projectRoutes.get('/:id', async (c) => {
   const user = c.get('user')
   const id = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, id))) return c.json({ message: 'Not found' }, 404)
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ? AND org_id = ?')
     .bind(id, user.orgId)
     .first<Record<string, unknown>>()
@@ -160,7 +161,7 @@ projectRoutes.delete('/:id', requireAny('admin', 'program_manager', 'pmo_lead'),
 projectRoutes.get('/:id/budget/history', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM budget_snapshots WHERE project_id = ? ORDER BY snapshot_date ASC LIMIT 60',
   ).bind(projectId).all()
@@ -182,7 +183,7 @@ projectRoutes.post('/:id/budget/recalculate', requireAny('admin', 'program_manag
 projectRoutes.get('/:id/budget', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
 
   const cached = await c.env.KV_CACHE.get(`budget:project:${projectId}:latest`, 'json')
   if (cached) return c.json(cached)
@@ -201,7 +202,7 @@ projectRoutes.get('/:id/budget', async (c) => {
 projectRoutes.get('/:id/task-dependencies', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const { results } = await c.env.DB.prepare(`
     SELECT td.*,
            t1.name as depends_on_name,
@@ -218,7 +219,7 @@ projectRoutes.get('/:id/task-dependencies', async (c) => {
 projectRoutes.get('/:id/schedule', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  if (!(await projectInOrg(c.env.DB, projectId, user.orgId))) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
 
   const { results: taskRows } = await c.env.DB.prepare(
     'SELECT id, estimated_hours, start_date, due_date, status FROM tasks WHERE project_id = ?',
@@ -274,6 +275,7 @@ projectRoutes.get('/:id/schedule', async (c) => {
 projectRoutes.get('/:id/roi', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   const project = await c.env.DB.prepare(
     'SELECT budget_capex, budget_opex, expected_benefit FROM projects WHERE id = ? AND org_id = ?',
   ).bind(projectId, user.orgId).first<{ budget_capex: number; budget_opex: number; expected_benefit: number }>()
@@ -298,9 +300,7 @@ projectRoutes.get('/:id/roi', async (c) => {
 projectRoutes.get('/:id/status-reports/suggestion', async (c) => {
   const user = c.get('user')
   const projectId = c.req.param('id')
-  const owned = await c.env.DB.prepare('SELECT 1 FROM projects WHERE id = ? AND org_id = ?')
-    .bind(projectId, user.orgId).first()
-  if (!owned) return c.json({ message: 'Not found' }, 404)
+  if (!(await canAccessProject(c.env.DB, user, projectId))) return c.json({ message: 'Not found' }, 404)
   try {
     const suggestion = await suggestRAGs(c.env.DB, projectId)
     return c.json(suggestion)
