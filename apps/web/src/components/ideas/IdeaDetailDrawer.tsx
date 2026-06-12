@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import { IdeaStrategicValue } from '@/components/ideas/IdeaStrategicValue'
-import { useIdea, useApproveIdea, useRejectIdea, useConvertIdea } from '@/hooks/useIdeas'
+import { useIdea, useApproveIdea, useRejectIdea, useConvertIdea, useUpdateIdea, useTransitionIdea } from '@/hooks/useIdeas'
 import { useAuthStore } from '@/stores/authStore'
 import { useDialog } from '@/hooks/useDialog'
 import { useNavigate } from 'react-router-dom'
@@ -21,17 +21,53 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
   const approveIdea = useApproveIdea()
   const rejectIdea = useRejectIdea()
   const convertIdea = useConvertIdea()
+  const updateIdea = useUpdateIdea()
+  const transitionIdea = useTransitionIdea()
 
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
   const [showConvertModal, setShowConvertModal] = useState(false)
+
+  // Local RICE edit buffer (string inputs); synced when the idea loads.
+  const [rice, setRice] = useState({ reach: '', impact: '', confidence: '', effort: '' })
+  useEffect(() => {
+    if (idea) {
+      setRice({
+        reach: idea.reach != null ? String(idea.reach) : '',
+        impact: idea.impact != null ? String(idea.impact) : '',
+        confidence: idea.confidence != null ? String(idea.confidence) : '',
+        effort: idea.effort != null ? String(idea.effort) : '',
+      })
+    }
+  }, [idea])
 
   // Only the drawer handles Escape while the nested convert modal is closed.
   const drawerRef = useDialog(!!ideaId && !showConvertModal, onClose)
   const convertRef = useDialog(showConvertModal, () => setShowConvertModal(false))
 
   const canDecide = user?.role === 'admin' || user?.role === 'pmo_lead' || user?.role === 'program_manager'
+  const canEditIdea = canDecide || user?.role === 'project_manager' || idea?.submitterId === user?.id
   const isApproved = idea?.status === 'approved'
   const isFrozen = idea?.status === 'converted_to_project'
+
+  const TRANSITION_STATUSES = ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'on_hold'] as const
+
+  function saveRice() {
+    if (!idea) return
+    updateIdea.mutate({
+      id: idea.id,
+      reach: rice.reach === '' ? null : Number(rice.reach),
+      impact: rice.impact === '' ? null : Number(rice.impact),
+      confidence: rice.confidence === '' ? null : Number(rice.confidence),
+      effort: rice.effort === '' ? null : Number(rice.effort),
+    })
+  }
+
+  const riceDirty = idea != null && (
+    rice.reach !== (idea.reach != null ? String(idea.reach) : '') ||
+    rice.impact !== (idea.impact != null ? String(idea.impact) : '') ||
+    rice.confidence !== (idea.confidence != null ? String(idea.confidence) : '') ||
+    rice.effort !== (idea.effort != null ? String(idea.effort) : '')
+  )
 
   if (!ideaId) return null
 
@@ -82,16 +118,30 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
                   </div>
                 )}
               </div>
-              <div className="mt-2">
-                <span className={cn(
-                  'text-xs px-2 py-1 rounded font-medium',
-                  idea.status === 'approved' ? 'bg-green-100 text-green-700'
-                  : idea.status === 'rejected' ? 'bg-red-100 text-red-700'
-                  : idea.status === 'converted_to_project' ? 'bg-teal-100 text-teal-700'
-                  : 'bg-blue-100 text-blue-700',
-                )}>
-                  {idea.status.replace(/_/g, ' ')}
-                </span>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {canDecide && !isFrozen ? (
+                  <select
+                    aria-label="Idea status"
+                    className="text-xs border rounded px-2 py-1 bg-background font-medium capitalize"
+                    value={TRANSITION_STATUSES.includes(idea.status as typeof TRANSITION_STATUSES[number]) ? idea.status : 'draft'}
+                    disabled={transitionIdea.isPending}
+                    onChange={(e) => transitionIdea.mutate({ id: idea.id, toStatus: e.target.value })}
+                  >
+                    {TRANSITION_STATUSES.map((s) => (
+                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={cn(
+                    'text-xs px-2 py-1 rounded font-medium',
+                    idea.status === 'approved' ? 'bg-green-100 text-green-700'
+                    : idea.status === 'rejected' ? 'bg-red-100 text-red-700'
+                    : idea.status === 'converted_to_project' ? 'bg-teal-100 text-teal-700'
+                    : 'bg-blue-100 text-blue-700',
+                  )}>
+                    {idea.status.replace(/_/g, ' ')}
+                  </span>
+                )}
                 {isFrozen && idea.convertedProjectId && (
                   <button
                     className="ml-2 text-xs text-primary hover:underline"
@@ -117,15 +167,49 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
 
             {/* RICE */}
             <section className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RICE Scoring</h4>
-              <div className="grid grid-cols-4 gap-2">
-                {(['reach', 'impact', 'confidence', 'effort'] as const).map((field) => (
-                  <div key={field} className="border rounded p-2 text-center">
-                    <p className="text-xs text-muted-foreground capitalize">{field}</p>
-                    <p className="text-lg font-bold">{idea[field] ?? '—'}</p>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RICE Scoring</h4>
+                {canEditIdea && !isFrozen && riceDirty && (
+                  <Button size="sm" className="h-6 text-xs px-2" disabled={updateIdea.isPending} onClick={saveRice}>
+                    {updateIdea.isPending ? 'Saving…' : 'Save RICE'}
+                  </Button>
+                )}
               </div>
+              {canEditIdea && !isFrozen ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    ['reach', 'Reach', 1, 9, 1],
+                    ['impact', 'Impact', 1, 9, 1],
+                    ['confidence', 'Confidence', 0.1, 1, 0.1],
+                    ['effort', 'Effort', 1, 10, 1],
+                  ] as const).map(([field, label, min, max, step]) => (
+                    <div key={field} className="border rounded p-2 text-center">
+                      <label className="text-xs text-muted-foreground">{label}</label>
+                      <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        step={step}
+                        className="w-full text-center text-lg font-bold bg-transparent focus:outline-none"
+                        value={rice[field]}
+                        onChange={(e) => setRice((r) => ({ ...r, [field]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {(['reach', 'impact', 'confidence', 'effort'] as const).map((field) => (
+                    <div key={field} className="border rounded p-2 text-center">
+                      <p className="text-xs text-muted-foreground capitalize">{field}</p>
+                      <p className="text-lg font-bold">{idea[field] ?? '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                RICE = (Reach × Impact × Confidence) ÷ Effort{idea.riceScore > 0 && ` · current ${idea.riceScore.toFixed(1)}`}
+              </p>
             </section>
 
             {/* Strategic Value — P-score */}

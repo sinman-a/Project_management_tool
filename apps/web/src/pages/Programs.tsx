@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, FolderOpen, Calendar, DollarSign, Archive, Trash2, Upload } from 'lucide-react'
 import { ImportModal } from '@/components/settings/ImportModal'
+import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { usePrograms } from '@/hooks/useProjects'
 import { useCreateProgram, useUpdateProgram, useDeleteProgram } from '@/hooks/usePrograms'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,6 +28,7 @@ export function Programs() {
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [showEntityImport, setShowEntityImport] = useState(false)
 
   const programs = showArchived
     ? allPrograms
@@ -72,9 +74,15 @@ export function Programs() {
             </Button>
           )}
           {canCreateProjects() && (
+            <Button variant="outline" size="sm" onClick={() => setShowEntityImport(true)}>
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import CSV
+            </Button>
+          )}
+          {canCreateProjects() && (
             <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
               <Upload className="w-3.5 h-3.5 mr-1.5" />
-              Import
+              Import Project
             </Button>
           )}
           {canCreateProjects() && !showForm && (
@@ -243,6 +251,7 @@ export function Programs() {
     </div>
 
     {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+    {showEntityImport && <EntityImportModal entityType="program" onClose={() => setShowEntityImport(false)} />}
     </>
   )
 }

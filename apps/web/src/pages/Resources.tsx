@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar, Activity, AlertTriangle } from 'lucide-react'
+import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar, Activity, AlertTriangle, Upload } from 'lucide-react'
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from '@/hooks/useResources'
+import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { useOrgSettings } from '@/hooks/useOrg'
 import { useCapacityHeatmap } from '@/hooks/useCapacity'
 import { useAuthStore } from '@/stores/authStore'
@@ -53,6 +54,7 @@ export function Resources() {
   const [editTarget, setEditTarget] = useState<Resource | null>(null)
   const [view, setView] = useState<'cards' | 'table' | 'capacity'>('cards')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [showImport, setShowImport] = useState(false)
 
   const isAdmin = user?.role === 'admin'
   const enableArchetype = org?.settings?.enableArchetype ?? false
@@ -101,6 +103,11 @@ export function Resources() {
                 <Activity className="w-3 h-3" /> Capacity
               </button>
             </div>
+          )}
+          {isAdmin && !showForm && !editTarget && (
+            <Button variant="outline" onClick={() => setShowImport(true)}>
+              <Upload className="w-4 h-4 mr-2" /> Import CSV
+            </Button>
           )}
           {isAdmin && !showForm && !editTarget && (
             <Button onClick={() => { setEditTarget(null); setShowForm(true) }}>
@@ -216,6 +223,8 @@ export function Resources() {
           )}
         </>
       )}
+
+      {showImport && <EntityImportModal entityType="resource" onClose={() => setShowImport(false)} />}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import type { HonoContext } from '../types'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -520,4 +521,200 @@ importRoutes.post('/file', async (c) => {
   }
 
   return c.json({ projectId, projectName, taskCount: taskIds.length })
+})
+
+// ── PROTECTED: Bulk entity import (CSV / Google Sheets) ───────────────────────
+
+type EntityType = 'portfolio' | 'program' | 'project' | 'resource'
+
+// Roles allowed to import each entity type (mirrors the create routes).
+const IMPORT_ROLES: Record<EntityType, string[]> = {
+  portfolio: ['admin', 'program_manager', 'pmo_lead'],
+  program: ['admin', 'program_manager', 'pmo_lead'],
+  project: ['admin', 'program_manager', 'pmo_lead'],
+  resource: ['admin'],
+}
+
+function num(v: string | undefined, fallback = 0): number {
+  const n = parseFloat((v ?? '').replace(/[, ]/g, ''))
+  return isNaN(n) ? fallback : n
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Turn a Google Sheets share/edit URL into its CSV export URL. */
+function sheetsCsvUrl(url: string): string | null {
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+  if (!m) return null
+  const gid = url.match(/[#&?]gid=(\d+)/)?.[1]
+  return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gid ? `&gid=${gid}` : ''}`
+}
+
+const entitySchemas: Record<EntityType, z.ZodType> = {
+  portfolio: z.object({
+    name: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+  }),
+  program: z.object({
+    name: z.string().min(1).max(200),
+    description: z.string().optional(),
+    startDate: z.string().regex(DATE_RE),
+    endDate: z.string().regex(DATE_RE).optional(),
+    budgetCapex: z.number().min(0),
+    budgetOpex: z.number().min(0),
+    portfolioName: z.string().optional(),
+  }),
+  project: z.object({
+    name: z.string().min(1).max(200),
+    description: z.string().optional(),
+    methodology: z.enum(['waterfall', 'agile', 'hybrid']),
+    startDate: z.string().regex(DATE_RE),
+    endDate: z.string().regex(DATE_RE).optional(),
+    budgetCapex: z.number().min(0),
+    budgetOpex: z.number().min(0),
+    expectedBenefit: z.number().min(0),
+    programName: z.string().optional(),
+  }),
+  resource: z.object({
+    name: z.string().min(1).max(200),
+    email: z.string().email().max(200).optional(),
+    type: z.enum(['human', 'equipment']),
+    costType: z.enum(['capex', 'opex']),
+    rate: z.number().min(0),
+    currency: z.string().length(3),
+    capacityHoursPerWeek: z.number().min(0).max(168),
+    role: z.string().max(100).optional(),
+    seniorityLevel: z.string().max(50).optional(),
+    location: z.string().max(100).optional(),
+  }),
+}
+
+function mapRow(entityType: EntityType, row: Record<string, string>, today: string): unknown {
+  const g = (k: string) => (row[k] ?? '').trim() || undefined
+  switch (entityType) {
+    case 'portfolio':
+      return { name: g('name'), description: g('description') }
+    case 'program':
+      return {
+        name: g('name'), description: g('description'),
+        startDate: g('start_date') ?? today, endDate: g('end_date'),
+        budgetCapex: num(row.budget_capex), budgetOpex: num(row.budget_opex),
+        portfolioName: g('portfolio'),
+      }
+    case 'project':
+      return {
+        name: g('name'), description: g('description'),
+        methodology: (g('methodology') ?? 'hybrid').toLowerCase(),
+        startDate: g('start_date') ?? today, endDate: g('end_date'),
+        budgetCapex: num(row.budget_capex), budgetOpex: num(row.budget_opex),
+        expectedBenefit: num(row.expected_benefit),
+        programName: g('program'),
+      }
+    case 'resource':
+      return {
+        name: g('name'), email: g('email'),
+        type: (g('type') ?? 'human').toLowerCase(),
+        costType: (g('cost_type') ?? 'opex').toLowerCase(),
+        rate: num(row.rate), currency: (g('currency') ?? 'USD').toUpperCase(),
+        capacityHoursPerWeek: num(row.capacity_hours_per_week, 40),
+        role: g('role'), seniorityLevel: g('seniority_level'), location: g('location'),
+      }
+  }
+}
+
+importRoutes.post('/entities', async (c) => {
+  const user = c.get('user')
+  const contentType = c.req.header('content-type') ?? ''
+
+  let entityType: EntityType | undefined
+  let csvText = ''
+
+  if (contentType.includes('multipart/form-data')) {
+    const fd = await c.req.formData().catch(() => null)
+    if (!fd) return c.json({ message: 'Expected multipart/form-data' }, 400)
+    entityType = (fd.get('entityType') as string | null) as EntityType | undefined
+    const file = fd.get('file') as File | null
+    if (!file) return c.json({ message: 'file required' }, 400)
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (ext !== 'csv') return c.json({ message: 'Only .csv files are supported.' }, 422)
+    csvText = await file.text()
+  } else {
+    const body = await c.req.json().catch(() => null) as { entityType?: EntityType; sheetUrl?: string } | null
+    if (!body) return c.json({ message: 'Invalid JSON' }, 400)
+    entityType = body.entityType
+    if (!body.sheetUrl) return c.json({ message: 'sheetUrl required' }, 400)
+    const csvUrl = sheetsCsvUrl(body.sheetUrl)
+    if (!csvUrl) return c.json({ message: 'Invalid Google Sheets URL' }, 400)
+    const res = await fetch(csvUrl)
+    if (!res.ok || (res.headers.get('content-type') ?? '').includes('text/html')) {
+      return c.json({ message: 'Could not read the sheet. Make sure it is shared as "anyone with the link" or published.' }, 422)
+    }
+    csvText = await res.text()
+  }
+
+  if (!entityType || !(entityType in entitySchemas)) {
+    return c.json({ message: 'Invalid entityType' }, 400)
+  }
+  if (!IMPORT_ROLES[entityType].includes(user.role)) {
+    return c.json({ message: 'Forbidden' }, 403)
+  }
+
+  const rows = parseCSV(csvText)
+  if (rows.length === 0) return c.json({ message: 'No data rows found.' }, 422)
+
+  const schema = entitySchemas[entityType]
+  const today = new Date().toISOString().slice(0, 10)
+  const errors: { row: number; message: string }[] = []
+  let created = 0
+
+  // Lookup maps for name → id resolution (programs/portfolios)
+  const portfolioByName = new Map<string, string>()
+  const programByName = new Map<string, string>()
+  if (entityType === 'program') {
+    const { results } = await c.env.DB.prepare('SELECT id, name FROM portfolios WHERE org_id = ?').bind(user.orgId).all<{ id: string; name: string }>()
+    for (const r of results) portfolioByName.set(r.name.toLowerCase(), r.id)
+  }
+  if (entityType === 'project') {
+    const { results } = await c.env.DB.prepare('SELECT id, name FROM programs WHERE org_id = ?').bind(user.orgId).all<{ id: string; name: string }>()
+    for (const r of results) programByName.set(r.name.toLowerCase(), r.id)
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const parsed = schema.safeParse(mapRow(entityType, rows[i], today))
+    if (!parsed.success) {
+      errors.push({ row: i + 2, message: parsed.error.issues[0]?.message ?? 'Invalid row' })
+      continue
+    }
+    const d = parsed.data as Record<string, unknown>
+    const id = crypto.randomUUID()
+
+    try {
+      if (entityType === 'portfolio') {
+        await c.env.DB.prepare('INSERT INTO portfolios (id, org_id, name, description, owner_id) VALUES (?, ?, ?, ?, ?)')
+          .bind(id, user.orgId, d.name, d.description ?? null, user.sub).run()
+      } else if (entityType === 'program') {
+        const portfolioId = d.portfolioName ? portfolioByName.get(String(d.portfolioName).toLowerCase()) ?? null : null
+        await c.env.DB.prepare(`
+          INSERT INTO programs (id, org_id, name, description, portfolio_id, owner_id, status, start_date, end_date, budget_capex, budget_opex)
+          VALUES (?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?)
+        `).bind(id, user.orgId, d.name, d.description ?? null, portfolioId, user.sub, d.startDate, d.endDate ?? null, d.budgetCapex, d.budgetOpex).run()
+      } else if (entityType === 'project') {
+        const programId = d.programName ? programByName.get(String(d.programName).toLowerCase()) ?? null : null
+        await c.env.DB.prepare(`
+          INSERT INTO projects (id, org_id, program_id, name, description, manager_id, methodology, status, start_date, end_date, budget_capex, budget_opex, expected_benefit)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?, ?)
+        `).bind(id, user.orgId, programId, d.name, d.description ?? null, user.sub, d.methodology, d.startDate, d.endDate ?? null, d.budgetCapex, d.budgetOpex, d.expectedBenefit).run()
+      } else {
+        await c.env.DB.prepare(`
+          INSERT INTO resources (id, org_id, name, email, type, cost_type, rate, currency, capacity_hours_per_week, role, seniority_level, location, project_allocation)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 100)
+        `).bind(id, user.orgId, d.name, d.email ?? null, d.type, d.costType, d.rate, d.currency, d.capacityHoursPerWeek, d.role ?? null, d.seniorityLevel ?? null, d.location ?? null).run()
+      }
+      created++
+    } catch (e) {
+      errors.push({ row: i + 2, message: (e as Error).message })
+    }
+  }
+
+  return c.json({ created, skipped: errors.length, errors })
 })

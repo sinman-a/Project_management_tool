@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Layers, FolderKanban, Trash2, X } from 'lucide-react'
+import { Plus, Layers, FolderKanban, Trash2, X, Upload } from 'lucide-react'
 import { usePortfolios, useCreatePortfolio, useDeletePortfolio } from '@/hooks/usePortfolios'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EntityImportModal } from '@/components/import/EntityImportModal'
 
 export function Portfolios() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ export function Portfolios() {
   const createPortfolio = useCreatePortfolio()
   const deletePortfolio = useDeletePortfolio()
 
+  const [showImport, setShowImport] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -38,11 +40,18 @@ export function Portfolios() {
           </p>
         </div>
         {canCreateProjects() && !showForm && (
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="w-4 h-4 mr-2" /> New Portfolio
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowImport(true)}>
+              <Upload className="w-4 h-4 mr-2" /> Import CSV
+            </Button>
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="w-4 h-4 mr-2" /> New Portfolio
+            </Button>
+          </div>
         )}
       </div>
+
+      {showImport && <EntityImportModal entityType="portfolio" onClose={() => setShowImport(false)} />}
 
       {showForm && (
         <Card>
