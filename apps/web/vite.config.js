@@ -33,6 +33,22 @@ export default defineConfig({
                 importScripts: ['/push-sw.js'], // custom push + notificationclick handlers
                 runtimeCaching: [
                     {
+                        // Offline write: queue task status PATCH; replay automatically on reconnect.
+                        urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' &&
+                            request.method === 'PATCH' && /^\/api\/tasks\/[^/]+$/.test(url.pathname),
+                        handler: 'NetworkOnly',
+                        method: 'PATCH',
+                        options: { backgroundSync: { name: 'ppm-mutations', options: { maxRetentionTime: 24 * 60 } } },
+                    },
+                    {
+                        // Offline write: queue time-log creation; replay on reconnect.
+                        urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' &&
+                            request.method === 'POST' && url.pathname === '/api/time-logs',
+                        handler: 'NetworkOnly',
+                        method: 'POST',
+                        options: { backgroundSync: { name: 'ppm-mutations', options: { maxRetentionTime: 24 * 60 } } },
+                    },
+                    {
                         // Cache GET API responses so last-seen data is available offline (NetworkFirst).
                         urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' && request.method === 'GET',
                         handler: 'NetworkFirst',

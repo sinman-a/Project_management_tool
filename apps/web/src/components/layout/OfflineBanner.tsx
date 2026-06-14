@@ -20,7 +20,7 @@ export function OfflineBanner() {
   return (
     <div className="flex items-center justify-center gap-2 bg-amber-500/90 text-white text-xs py-1 px-3">
       <WifiOff className="w-3.5 h-3.5" />
-      <span>You’re offline — showing the last loaded data. Changes can’t be saved until you reconnect.</span>
+      <span>You’re offline — showing the last loaded data. Task status &amp; time-log changes are queued and will sync when you reconnect.</span>
     </div>
   )
 }
