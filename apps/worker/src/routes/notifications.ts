@@ -1,7 +1,34 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import type { HonoContext } from '../types'
 
 export const notificationRoutes = new Hono<HonoContext>()
+
+const NOTIFICATION_TYPES = ['task_overdue', 'risk_attention', 'comment_added', 'project_status_changed', 'mention'] as const
+
+// GET /notifications/preferences
+notificationRoutes.get('/preferences', async (c) => {
+  const user = c.get('user')
+  const row = await c.env.DB.prepare('SELECT notification_prefs FROM users WHERE id = ?')
+    .bind(user.sub).first<{ notification_prefs: string | null }>()
+  let prefs: Record<string, boolean> = {}
+  try { prefs = row?.notification_prefs ? JSON.parse(row.notification_prefs) : {} } catch { /* ignore */ }
+  // Default every type to enabled when unset.
+  const result = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, prefs[t] !== false]))
+  return c.json(result)
+})
+
+// PUT /notifications/preferences
+notificationRoutes.put('/preferences', async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json().catch(() => ({}))
+  const parsed = z.record(z.boolean()).safeParse(body)
+  if (!parsed.success) return c.json({ message: 'Invalid input' }, 400)
+  const clean = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, parsed.data[t] !== false]))
+  await c.env.DB.prepare('UPDATE users SET notification_prefs = ? WHERE id = ?')
+    .bind(JSON.stringify(clean), user.sub).run()
+  return c.json(clean)
+})
 
 // GET /notifications?unread=true&limit=20
 notificationRoutes.get('/', async (c) => {
@@ -72,7 +99,12 @@ notificationRoutes.delete('/:id', async (c) => {
 })
 
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
+  const out = Object.fromEntries(
     Object.entries(obj).map(([k, v]) => [k.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase()), v]),
   )
+  // payload is stored as a JSON string — parse it so the client gets a usable object.
+  if (typeof out.payload === 'string') {
+    try { out.payload = JSON.parse(out.payload as string) } catch { out.payload = {} }
+  }
+  return out
 }

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext, JwtPayload } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { createNotification } from '../services/notificationService'
+import { createNotification, notifyUser } from '../services/notificationService'
 import { canAccessProject, canAccessProgram } from '../middleware/ownership'
 
 /**
@@ -89,6 +89,26 @@ commentRoutes.post('/', async (c) => {
         entityId,
         actorId: user.sub,
         payload: { message: `Mentioned you in a comment`, entityType, entityId },
+      })
+    }
+  }
+
+  // Notify the project manager about new discussion activity (project/task threads).
+  if (entityType === 'project' || entityType === 'task') {
+    const owner = await c.env.DB.prepare(
+      entityType === 'project'
+        ? 'SELECT manager_id, name FROM projects WHERE id = ? AND org_id = ?'
+        : 'SELECT p.manager_id as manager_id, p.name as name FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = ? AND p.org_id = ?',
+    ).bind(entityId, user.orgId).first<{ manager_id: string | null; name: string }>()
+    if (owner?.manager_id) {
+      await notifyUser(c.env.DB, {
+        orgId: user.orgId,
+        recipientId: owner.manager_id,
+        actorId: user.sub,
+        type: 'comment_added',
+        entityType,
+        entityId,
+        payload: { message: `New comment on "${owner.name}"` },
       })
     }
   }

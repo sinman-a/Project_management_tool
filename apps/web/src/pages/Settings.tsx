@@ -9,6 +9,7 @@ import { UserForm } from '@/components/users/UserForm'
 import { ImportSection } from '@/components/settings/ImportSection'
 import { SecurityCard } from '@/components/settings/SecurityCard'
 import { AuthAuditCard } from '@/components/settings/AuthAuditCard'
+import { NotificationPreferencesCard } from '@/components/settings/NotificationPreferencesCard'
 import { StrategicDriversCard } from '@/components/settings/StrategicDriversCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -445,6 +446,9 @@ export function Settings() {
 
       {/* Import */}
       {isAdmin && <ImportSection />}
+
+      {/* Notification preferences (all users) */}
+      <NotificationPreferencesCard />
 
       {/* Security — change password, 2FA, sessions (all users) */}
       <SecurityCard />

@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { useNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from '@/hooks/useNotifications'
+import { notificationMeta, notificationLink, relativeTime } from '@/lib/notificationMeta'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -31,9 +32,8 @@ function NotificationBell() {
   function handleClick(n: typeof items[0]) {
     markRead.mutate(n.id)
     setOpen(false)
-    if (n.entityType && n.entityId) {
-      navigate(`/${n.entityType}s/${n.entityId}`)
-    }
+    const link = notificationLink(n)
+    if (link) navigate(link)
   }
 
   return (
@@ -70,26 +70,31 @@ function NotificationBell() {
               {items.length === 0 ? (
                 <p className="text-xs text-muted-foreground p-4 text-center">No notifications</p>
               ) : (
-                items.map((n) => (
-                  <button
-                    key={n.id}
-                    className={cn(
-                      'w-full text-left px-3 py-2.5 text-sm hover:bg-accent transition-colors',
-                      !n.readAt && 'bg-primary/5',
-                    )}
-                    onClick={() => handleClick(n)}
-                  >
-                    <div className="flex gap-2 items-start">
-                      {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />}
-                      <div className={cn(!n.readAt ? '' : 'ml-3.5')}>
-                        <p className="text-xs font-medium">{n.type.replace(/_/g, ' ')}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {(n.payload as { message?: string }).message ?? ''}
-                        </p>
+                items.map((n) => {
+                  const meta = notificationMeta(n.type)
+                  const Icon = meta.icon
+                  return (
+                    <button
+                      key={n.id}
+                      className={cn(
+                        'w-full text-left px-3 py-2.5 text-sm hover:bg-accent transition-colors',
+                        !n.readAt && 'bg-primary/5',
+                      )}
+                      onClick={() => handleClick(n)}
+                    >
+                      <div className="flex gap-2 items-start">
+                        <Icon className={cn('w-4 h-4 mt-0.5 flex-shrink-0', meta.color)} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium">{meta.title}</p>
+                          {(n.payload as { message?: string }).message && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{(n.payload as { message?: string }).message}</p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">{relativeTime(n.createdAt)}</p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  )
+                })
               )}
             </div>
             <div className="border-t px-3 py-2">

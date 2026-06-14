@@ -6,6 +6,7 @@ import { recalculateProjectBudget } from '../services/budgetService'
 import { computeCPM, CycleError } from '../services/cpmService'
 import { suggestRAGs } from '../services/suggestionService'
 import { canAccessProject, canManageProject } from '../middleware/ownership'
+import { notifyUser } from '../services/notificationService'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
@@ -118,7 +119,7 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', '
   const id = c.req.param('id')
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ? AND org_id = ?')
     .bind(id, user.orgId)
-    .first<{ manager_id: string }>()
+    .first<{ manager_id: string; name: string; status: string }>()
 
   if (!project) return c.json({ message: 'Not found' }, 404)
   if (user.role === 'project_manager' && project.manager_id !== user.sub) {
@@ -145,6 +146,21 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', '
     .run()
 
   const updated = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first()
+
+  // Notify the project manager when the status changes (skip if they made the change).
+  const newStatus = (body as Record<string, unknown>).status
+  if (typeof newStatus === 'string' && newStatus !== project.status && project.manager_id) {
+    await notifyUser(c.env.DB, {
+      orgId: user.orgId,
+      recipientId: project.manager_id,
+      actorId: user.sub,
+      type: 'project_status_changed',
+      entityType: 'project',
+      entityId: id,
+      payload: { message: `Project "${project.name}" status changed to ${newStatus.replace(/_/g, ' ')}` },
+    })
+  }
+
   return c.json(toCamel(updated!))
 })
 

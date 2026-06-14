@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Bell, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,18 +6,20 @@ import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead,
 import { useNavigate } from 'react-router-dom'
 import type { Notification } from '@/types'
 import { cn } from '@/lib/utils'
+import { notificationMeta, notificationLink, relativeTime } from '@/lib/notificationMeta'
 
 function NotificationRow({ notification, onRead }: { notification: Notification; onRead: () => void }) {
   const navigate = useNavigate()
   const dismiss = useDismissNotification()
 
   const payload = notification.payload as { message?: string; entityName?: string }
+  const meta = notificationMeta(notification.type)
+  const Icon = meta.icon
 
   function handleClick() {
     onRead()
-    if (notification.entityType && notification.entityId) {
-      navigate(`/${notification.entityType}s/${notification.entityId}`)
-    }
+    const link = notificationLink(notification)
+    if (link) navigate(link)
   }
 
   return (
@@ -24,16 +27,14 @@ function NotificationRow({ notification, onRead }: { notification: Notification;
       'flex items-start gap-3 py-3 px-4 border-b last:border-0 hover:bg-muted/30 transition-colors',
       !notification.readAt && 'bg-primary/5',
     )}>
-      {!notification.readAt && (
-        <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-      )}
+      <Icon className={cn('w-4 h-4 mt-0.5 flex-shrink-0', meta.color)} />
       <div
-        className={cn('flex-1 cursor-pointer min-w-0', !notification.readAt ? '' : 'ml-5')}
+        className="flex-1 cursor-pointer min-w-0"
         onClick={handleClick}
       >
-        <p className="text-sm font-medium capitalize">{notification.type.replace(/_/g, ' ')}</p>
+        <p className="text-sm font-medium">{meta.title}{!notification.readAt && <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle" />}</p>
         {payload.message && <p className="text-xs text-muted-foreground mt-0.5">{payload.message}</p>}
-        <p className="text-xs text-muted-foreground mt-1">{new Date(notification.createdAt).toLocaleString()}</p>
+        <p className="text-xs text-muted-foreground mt-1">{relativeTime(notification.createdAt)}</p>
       </div>
       <div className="flex gap-1 flex-shrink-0">
         {!notification.readAt && (
@@ -58,7 +59,8 @@ function NotificationRow({ notification, onRead }: { notification: Notification;
 }
 
 export function Notifications() {
-  const { data, isLoading } = useNotifications()
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const { data, isLoading } = useNotifications(filter === 'unread')
   const markRead = useMarkNotificationRead()
   const markAll = useMarkAllNotificationsRead()
 
@@ -83,9 +85,21 @@ export function Notifications() {
         )}
       </div>
 
+      <div className="flex gap-1 border rounded-md p-0.5 bg-muted/30 w-fit">
+        {(['all', 'unread'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1 text-sm rounded capitalize transition-colors ${filter === f ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {f}{f === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}
+          </button>
+        ))}
+      </div>
+
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Recent Notifications</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">{filter === 'unread' ? 'Unread' : 'Recent'} Notifications</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (

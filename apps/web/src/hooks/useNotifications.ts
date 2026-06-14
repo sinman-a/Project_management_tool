@@ -38,3 +38,20 @@ export function useDismissNotification() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
 }
+
+export type NotificationPrefs = Record<string, boolean>
+
+export function useNotificationPrefs() {
+  return useQuery({
+    queryKey: ['notification-prefs'],
+    queryFn: () => api.get<NotificationPrefs>('/notifications/preferences'),
+  })
+}
+
+export function useUpdateNotificationPrefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (prefs: NotificationPrefs) => api.put<NotificationPrefs>('/notifications/preferences', prefs),
+    onSuccess: (data) => qc.setQueryData(['notification-prefs'], data),
+  })
+}
