@@ -114,6 +114,18 @@ function NotificationBell() {
   )
 }
 
+function BrandLogo() {
+  const { theme } = useThemeStore()
+  // Logos have solid light/dark backgrounds that blend with the matching header theme.
+  return (
+    <img
+      src={theme === 'dark' ? '/brand/logo-dark.png' : '/brand/logo-light.png'}
+      alt="PPM Tool"
+      className="h-7 w-7 object-contain rounded"
+    />
+  )
+}
+
 function ThemeToggle() {
   const { theme, toggle } = useThemeStore()
   return (
@@ -145,6 +157,7 @@ export function TopNav() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center px-3 sm:px-6 gap-2 sm:gap-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-lg flex-shrink-0">
+          <BrandLogo />
           <span className="text-primary">PPM</span>
           <span className="text-muted-foreground font-normal text-sm hidden sm:inline">Tool</span>
         </Link>
