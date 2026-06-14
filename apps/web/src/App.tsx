@@ -10,6 +10,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { HealthBar } from '@/components/layout/HealthBar'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
+import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { CommandPalette } from '@/components/CommandPalette'
 // Entry pages stay eager (needed on first paint); authenticated pages are code-split.
 import { Login } from '@/pages/Login'
@@ -51,6 +52,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <OrgCurrencyLoader />
       <TopNav />
+      <OfflineBanner />
       <CommandPalette />
       <HealthBar />
       <div className="flex flex-1 overflow-hidden">

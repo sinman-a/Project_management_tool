@@ -31,7 +31,20 @@ export default defineConfig({
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         cleanupOutdatedCaches: true,
-        // Phase 2 (offline read) will add runtimeCaching for the API here.
+        runtimeCaching: [
+          {
+            // Cache GET API responses so last-seen data is available offline (NetworkFirst).
+            urlPattern: ({ url, request }) =>
+              url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' && request.method === 'GET',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'ppm-api',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],
