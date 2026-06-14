@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { HonoContext, JwtPayload } from '../types'
 import { requireAny } from '../middleware/rbac'
-import { createNotification, notifyUser } from '../services/notificationService'
+import { notifyUser } from '../services/notificationService'
 import { canAccessProject, canAccessProgram } from '../middleware/ownership'
 
 /**
@@ -81,7 +81,7 @@ commentRoutes.post('/', async (c) => {
       await c.env.DB.prepare('INSERT INTO mentions (id, comment_id, mentioned_user_id) VALUES (?, ?, ?)')
         .bind(crypto.randomUUID(), id, mentioned.id).run()
 
-      await createNotification(c.env.DB, {
+      await notifyUser(c.env.DB, {
         orgId: user.orgId,
         recipientId: mentioned.id,
         type: 'mention',
@@ -89,7 +89,7 @@ commentRoutes.post('/', async (c) => {
         entityId,
         actorId: user.sub,
         payload: { message: `Mentioned you in a comment`, entityType, entityId },
-      })
+      }, c.env)
     }
   }
 
@@ -109,7 +109,7 @@ commentRoutes.post('/', async (c) => {
         entityType,
         entityId,
         payload: { message: `New comment on "${owner.name}"` },
-      })
+      }, c.env)
     }
   }
 

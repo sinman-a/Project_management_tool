@@ -4,5 +4,5 @@ import { scanNotifications } from './notificationsCron'
 
 export async function handleScheduled(_event: ScheduledEvent, env: Env): Promise<void> {
   await recalculateAllActiveProjects(env.DB, env.KV_CACHE)
-  await scanNotifications(env.DB)
+  await scanNotifications(env)
 }

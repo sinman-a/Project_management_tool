@@ -30,6 +30,8 @@ ASANA_REDIRECT_URI = "https://ppm-worker.almazor-schwab.workers.dev/api/import/a
 EMAIL_FROM = "PPM Tool <onboarding@resend.dev>"
 APP_URL = "https://ppm-tool.pages.dev"
 SIGNUP_NOTIFY_EMAIL = ""
+VAPID_SUBJECT = "mailto:admin@ppm-tool.app"
+# VAPID_PUBLIC_KEY can also be a var; set together with the private key below.
 
 # Secrets — set via wrangler CLI:
 #   wrangler secret put JWT_SECRET
@@ -37,3 +39,5 @@ SIGNUP_NOTIFY_EMAIL = ""
 #   wrangler secret put ASANA_CLIENT_ID
 #   wrangler secret put ASANA_CLIENT_SECRET
 #   wrangler secret put RESEND_API_KEY        (enables email sending)
+#   wrangler secret put VAPID_PUBLIC_KEY      (base64url raw 65-byte P-256 public key)
+#   wrangler secret put VAPID_PRIVATE_KEY     (base64url raw 32-byte P-256 private scalar; enables Web Push)

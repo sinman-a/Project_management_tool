@@ -1,3 +1,4 @@
+import type { Env } from '../types'
 import type { D1Database } from '@cloudflare/workers-types'
 import { notifyUserDedup } from '../services/notificationService'
 
@@ -5,12 +6,13 @@ import { notifyUserDedup } from '../services/notificationService'
  * Scan for conditions that need attention and create notifications (deduped against
  * existing unread of the same type+entity). Runs from the hourly scheduled handler.
  */
-export async function scanNotifications(db: D1Database): Promise<void> {
-  await scanOverdueTasks(db)
-  await scanRisks(db)
+export async function scanNotifications(env: Env): Promise<void> {
+  await scanOverdueTasks(env)
+  await scanRisks(env)
 }
 
-async function scanOverdueTasks(db: D1Database): Promise<void> {
+async function scanOverdueTasks(env: Env): Promise<void> {
+  const db: D1Database = env.DB
   // One notification per overdue task to its assignee (if any) and the project manager.
   const { results } = await db.prepare(`
     SELECT t.id as task_id, t.name as task_name, t.assigned_to, t.due_date,
@@ -38,12 +40,13 @@ async function scanOverdueTasks(db: D1Database): Promise<void> {
         entityType: 'task',
         entityId: t.task_id,
         payload: { message: `Task "${t.task_name}" in ${t.project_name} is overdue (due ${t.due_date})` },
-      })
+      }, env)
     }
   }
 }
 
-async function scanRisks(db: D1Database): Promise<void> {
+async function scanRisks(env: Env): Promise<void> {
+  const db: D1Database = env.DB
   // Critical open risks, or risks whose review date has passed → notify owner + manager.
   const { results } = await db.prepare(`
     SELECT r.id as risk_id, r.title, r.owner_id, r.score_band, r.next_review_date,
@@ -71,7 +74,7 @@ async function scanRisks(db: D1Database): Promise<void> {
         entityType: 'risk',
         entityId: r.risk_id,
         payload: { message: `Risk "${r.title}" in ${r.project_name} ${reason}` },
-      })
+      }, env)
     }
   }
 }

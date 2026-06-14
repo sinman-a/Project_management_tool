@@ -31,6 +31,7 @@ export default defineConfig({
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         cleanupOutdatedCaches: true,
+        importScripts: ['/push-sw.js'], // custom push + notificationclick handlers
         runtimeCaching: [
           {
             // Cache GET API responses so last-seen data is available offline (NetworkFirst).

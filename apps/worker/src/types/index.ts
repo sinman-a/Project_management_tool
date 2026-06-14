@@ -16,6 +16,10 @@ export interface Env {
   EMAIL_FROM?: string
   APP_URL?: string
   SIGNUP_NOTIFY_EMAIL?: string
+  // Web Push (VAPID). Sending is a no-op when unset.
+  VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_SUBJECT?: string
 }
 
 export type UserRole = 'admin' | 'program_manager' | 'project_manager' | 'team_member' | 'pmo_lead' | 'sponsor' | 'viewer'

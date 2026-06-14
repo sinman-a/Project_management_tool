@@ -158,7 +158,7 @@ projectRoutes.patch('/:id', requireAny('admin', 'program_manager', 'pmo_lead', '
       entityType: 'project',
       entityId: id,
       payload: { message: `Project "${project.name}" status changed to ${newStatus.replace(/_/g, ' ')}` },
-    })
+    }, c.env)
   }
 
   return c.json(toCamel(updated!))
