@@ -28,13 +28,14 @@ export default defineConfig({
             },
             workbox: {
                 navigateFallback: '/index.html',
+                navigateFallbackDenylist: [/^\/api\//], // never serve the SPA shell for API calls
                 globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
                 cleanupOutdatedCaches: true,
                 importScripts: ['/push-sw.js'], // custom push + notificationclick handlers
                 runtimeCaching: [
                     {
                         // Offline write: queue task status PATCH; replay automatically on reconnect.
-                        urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' &&
+                        urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') &&
                             request.method === 'PATCH' && /^\/api\/tasks\/[^/]+$/.test(url.pathname),
                         handler: 'NetworkOnly',
                         method: 'PATCH',
@@ -42,15 +43,14 @@ export default defineConfig({
                     },
                     {
                         // Offline write: queue time-log creation; replay on reconnect.
-                        urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' &&
-                            request.method === 'POST' && url.pathname === '/api/time-logs',
+                        urlPattern: ({ url, request }) => request.method === 'POST' && url.pathname === '/api/time-logs',
                         handler: 'NetworkOnly',
                         method: 'POST',
                         options: { backgroundSync: { name: 'ppm-mutations', options: { maxRetentionTime: 24 * 60 } } },
                     },
                     {
                         // Cache GET API responses so last-seen data is available offline (NetworkFirst).
-                        urlPattern: ({ url, request }) => url.origin === 'https://ppm-worker.almazor-schwab.workers.dev' && request.method === 'GET',
+                        urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'ppm-api',
