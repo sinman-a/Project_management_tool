@@ -43,7 +43,7 @@ function SubmitForm({ onClose }: { onClose: () => void }) {
           <div className="space-y-1">
             <label className="text-xs font-medium">Title *</label>
             <input
-              className="w-full text-sm border rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="input-field"
               value={title}
               onChange={(e) => { setTitle(e.target.value); setError('') }}
               placeholder="Brief title for the idea"
@@ -53,7 +53,7 @@ function SubmitForm({ onClose }: { onClose: () => void }) {
             <label className="text-xs font-medium">Problem Statement *</label>
             <textarea
               rows={3}
-              className="w-full text-sm border rounded px-3 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              className="input-field resize-none"
               value={problem}
               onChange={(e) => setProblem(e.target.value)}
               placeholder="What problem does this solve?"

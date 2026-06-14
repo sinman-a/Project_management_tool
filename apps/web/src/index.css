@@ -58,6 +58,13 @@
   * {
     @apply border-border;
   }
+  /* Default form controls to theme colors so raw inputs aren't white-on-white in dark mode.
+     In @layer base, any Tailwind utility (e.g. bg-transparent) still overrides this. */
+  input,
+  textarea,
+  select {
+    @apply bg-background text-foreground;
+  }
   html {
     scroll-behavior: smooth;
   }
