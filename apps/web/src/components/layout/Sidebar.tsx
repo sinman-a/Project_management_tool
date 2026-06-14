@@ -85,7 +85,7 @@ export function Sidebar() {
 
   if (sidebarCollapsed) {
     return (
-      <div className="w-10 border-r flex flex-col items-center pt-3">
+      <div className="w-10 border-r hidden lg:flex flex-col items-center pt-3">
         <Button variant="ghost" size="icon" onClick={toggleSidebar} className="w-8 h-8">
           <PanelLeft className="w-4 h-4" />
         </Button>
@@ -94,7 +94,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 border-r flex flex-col h-full overflow-hidden">
+    <aside className="w-60 border-r hidden lg:flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Navigation

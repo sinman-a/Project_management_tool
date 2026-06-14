@@ -143,33 +143,34 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-      <div className="flex h-14 items-center px-6 gap-6">
-        <Link to="/" className="flex items-center gap-2 font-bold text-lg">
+      <div className="flex h-14 items-center px-3 sm:px-6 gap-2 sm:gap-4">
+        <Link to="/" className="flex items-center gap-2 font-bold text-lg flex-shrink-0">
           <span className="text-primary">PPM</span>
-          <span className="text-muted-foreground font-normal text-sm">Tool</span>
+          <span className="text-muted-foreground font-normal text-sm hidden sm:inline">Tool</span>
         </Link>
 
-        <nav className="flex items-center gap-1 ml-4">
+        <nav className="flex items-center gap-1 ml-1 overflow-x-auto no-scrollbar">
           {navItems.map(({ to, icon: Icon, label }) => (
             <Link
               key={to}
               to={to}
+              title={label}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
+                'flex items-center gap-2 px-2.5 py-2 text-sm rounded-md transition-colors flex-shrink-0',
                 location.pathname === to
                   ? 'bg-accent text-accent-foreground font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
               )}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              <span className="hidden lg:inline">{label}</span>
             </Link>
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {user && (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground hidden md:inline">
               {user.fullName}{' '}
               <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">
                 {user.role.replace(/_/g, ' ')}

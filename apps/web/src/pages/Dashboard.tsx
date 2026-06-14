@@ -236,7 +236,7 @@ export function Dashboard() {
           )}
         </div>
 
-        <div className="w-72 border-l flex flex-col overflow-hidden">
+        <div className="w-72 border-l hidden lg:flex flex-col overflow-hidden">
           <ContextPanel />
         </div>
       </div>

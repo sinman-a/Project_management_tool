@@ -437,8 +437,8 @@ function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDe
     )
   }
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="border rounded-lg overflow-x-auto">
+      <table className="w-full text-sm min-w-[640px]">
         <thead className="bg-muted/30 text-xs text-muted-foreground font-medium">
           <tr>
             <th className="text-left py-2 px-3">Name</th>
