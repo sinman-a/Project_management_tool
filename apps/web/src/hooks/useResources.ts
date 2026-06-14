@@ -22,6 +22,19 @@ export function useResourceAllocations(weekStart: string) {
   })
 }
 
+export interface ResourceAllocationBreakdown {
+  capacityHoursPerWeek: number
+  projects: { projectId: string; projectName: string; allocatedHours: number }[]
+}
+
+export function useResourceAllocationBreakdown(resourceId: string | null) {
+  return useQuery({
+    queryKey: ['resourceAllocation', resourceId],
+    queryFn: () => api.get<ResourceAllocationBreakdown>(`/resources/${resourceId}/allocation`),
+    enabled: !!resourceId,
+  })
+}
+
 export function useCreateResource() {
   const qc = useQueryClient()
   return useMutation({

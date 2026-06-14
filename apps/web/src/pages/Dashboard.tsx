@@ -16,15 +16,43 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 function ContextPanel() {
   const navigate = useNavigate()
-  const { selectedProjectId } = useUiStore()
+  const { selectedProjectId, selectProject } = useUiStore()
   const { data: project } = useProject(selectedProjectId ?? '')
   const { data: budget } = useProjectBudget(selectedProjectId ?? '')
   const { data: pendingLogs = [] } = useProjectTimeLogs(selectedProjectId ?? undefined, false)
+  const { data: allProjects = [] } = usePortfolioSummary()
 
   if (!selectedProjectId || !project) {
+    // Instead of a dead-end hint, show a pickable project list with quick KPIs.
+    const active = allProjects.filter((p) => p.status !== 'completed' && p.status !== 'cancelled')
     return (
-      <div className="p-4 space-y-3">
-        <p className="text-sm text-muted-foreground">Select a project from the sidebar to view details.</p>
+      <div className="p-4 space-y-2 overflow-y-auto">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Projects</p>
+        {active.length === 0 && (
+          <p className="text-sm text-muted-foreground">No active projects yet.</p>
+        )}
+        {active.map((p) => {
+          const budget = (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
+          const spent = (p.spentCapex ?? 0) + (p.spentOpex ?? 0)
+          const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0
+          return (
+            <button
+              key={p.id}
+              onClick={() => selectProject(p.id)}
+              className="w-full text-left border rounded-md px-2.5 py-2 hover:bg-accent transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <RagDot status={p.ragStatus ?? 'green'} size="sm" />
+                <span className="text-sm font-medium truncate flex-1">{p.name}</span>
+              </div>
+              <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                <span className="capitalize">{p.status}</span>
+                {budget > 0 && <span>{pct}% spent</span>}
+              </div>
+            </button>
+          )
+        })}
+        <p className="text-[11px] text-muted-foreground pt-1">Pick a project to see budget & approvals, or open it from the sidebar.</p>
       </div>
     )
   }

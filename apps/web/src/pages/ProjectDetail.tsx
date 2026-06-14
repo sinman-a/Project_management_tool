@@ -127,6 +127,17 @@ export function ProjectDetail() {
     { key: 'activity', label: 'Activity' },
   ]
 
+  // Group tabs into semantic blocks so they fit on screen (no horizontal scroll).
+  const TAB_GROUPS: { label: string; keys: Tab[] }[] = [
+    { label: 'Tasks', keys: ['wbs', 'kanban', 'sprints', 'gantt'] },
+    { label: 'Finance', keys: ['budget', 'cost'] },
+    { label: 'People', keys: ['team', 'time', 'staffcost'] },
+    { label: 'Analysis', keys: ['rice', 'risks', 'baselines', 'reports'] },
+    { label: 'Communication', keys: ['discussion', 'activity'] },
+  ]
+  const tabMap = Object.fromEntries(TABS.map((t) => [t.key, t])) as Record<Tab, typeof TABS[number]>
+  const activeGroupIdx = Math.max(0, TAB_GROUPS.findIndex((g) => g.keys.includes(activeTab)))
+
   return (
     <div className="p-6 space-y-6 max-w-6xl">
       {/* Header */}
@@ -244,7 +255,12 @@ export function ProjectDetail() {
       {budget && <BudgetAlertBanner snapshot={budget} />}
       {budget ? (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {budget.snapshotDate
+                ? `Last calculated ${new Date(budget.snapshotDate).toLocaleString()}`
+                : 'Not yet calculated'}
+            </span>
             <Button
               size="sm" variant="ghost"
               className="text-xs text-muted-foreground h-7"
@@ -286,23 +302,46 @@ export function ProjectDetail() {
         </Card>
       )}
 
-      {/* Task tabs */}
+      {/* Task tabs — grouped into semantic blocks (Tasks/Finance/People/Analysis/Communication) */}
       <div>
-        <div className="flex border-b gap-0 mb-4 overflow-x-auto">
-          {TABS.map(({ key, label, badge }) => (
-            <button
-              key={key}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${
-                activeTab === key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-              onClick={() => setActiveTab(key)}
-            >
-              {label}
-              {badge && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
-            </button>
-          ))}
+        {/* Group selector */}
+        <div className="flex flex-wrap gap-1 mb-2">
+          {TAB_GROUPS.map((g, idx) => {
+            const active = idx === activeGroupIdx
+            const groupHasBadge = g.keys.some((k) => tabMap[k]?.badge)
+            return (
+              <button
+                key={g.label}
+                className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
+                }`}
+                onClick={() => { if (!g.keys.includes(activeTab)) setActiveTab(g.keys[0]) }}
+              >
+                {g.label}
+                {groupHasBadge && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
+              </button>
+            )
+          })}
+        </div>
+        {/* Sub-tabs of the active group */}
+        <div className="flex flex-wrap border-b gap-0 mb-4">
+          {TAB_GROUPS[activeGroupIdx].keys.map((key) => {
+            const { label, badge } = tabMap[key]
+            return (
+              <button
+                key={key}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === key
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => setActiveTab(key)}
+              >
+                {label}
+                {badge && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
+              </button>
+            )
+          })}
         </div>
 
         {activeTab === 'wbs' && (
@@ -328,6 +367,7 @@ export function ProjectDetail() {
               links={projectLinks}
               dependencies={taskDeps}
               cpmData={cpmMap.size > 0 ? cpmMap : undefined}
+              onAddTasks={() => setActiveTab('wbs')}
               onCreateDependency={canEdit ? (predId, succId) => {
                 addDependency.mutate({ taskId: succId, dependsOnId: predId })
               } : undefined}

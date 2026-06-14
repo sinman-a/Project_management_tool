@@ -73,7 +73,10 @@ function SubmitForm({ onClose }: { onClose: () => void }) {
 
 export function Ideas() {
   const { user } = useAuthStore()
-  const [view, setView] = useState<'pipeline' | 'list' | 'priority'>('pipeline')
+  // Default to the vertical List view on small screens (Pipeline needs horizontal scroll).
+  const [view, setView] = useState<'pipeline' | 'list' | 'priority'>(
+    () => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'pipeline'),
+  )
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [themeFilter, setThemeFilter] = useState<string>('')
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null)

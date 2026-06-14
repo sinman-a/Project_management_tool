@@ -37,6 +37,27 @@ resourceRoutes.get('/', async (c) => {
   return c.json(results.map(toCamel))
 })
 
+// GET /resources/:id/allocation — breakdown of a resource's allocated hours by project.
+resourceRoutes.get('/:id/allocation', async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const resource = await c.env.DB.prepare('SELECT capacity_hours_per_week FROM resources WHERE id = ? AND org_id = ?')
+    .bind(id, user.orgId).first<{ capacity_hours_per_week: number }>()
+  if (!resource) return c.json({ message: 'Not found' }, 404)
+
+  const { results } = await c.env.DB.prepare(`
+    SELECT p.id as project_id, p.name as project_name, SUM(ta.allocated_hours) as allocated_hours
+    FROM task_assignments ta
+    JOIN tasks t ON t.id = ta.task_id
+    JOIN projects p ON p.id = t.project_id
+    WHERE ta.resource_id = ? AND p.org_id = ? AND t.status NOT IN ('done','cancelled')
+    GROUP BY p.id, p.name
+    ORDER BY allocated_hours DESC
+  `).bind(id, user.orgId).all()
+
+  return c.json({ capacityHoursPerWeek: resource.capacity_hours_per_week, projects: results.map(toCamel) })
+})
+
 resourceRoutes.post('/', requireAny('admin'), async (c) => {
   const user = c.get('user')
   const body = await c.req.json()

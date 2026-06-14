@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Task, TaskLink, TaskDependency, CpmFields } from '@/types'
 
@@ -49,6 +50,7 @@ interface Props {
   cpmData?: Map<string, CpmFields>
   onCreateDependency?: (predId: string, succId: string) => void
   onArrowClick?: (dep: TaskDependency) => void
+  onAddTasks?: () => void
 }
 
 export function GanttChart({
@@ -58,6 +60,7 @@ export function GanttChart({
   cpmData,
   onCreateDependency,
   onArrowClick,
+  onAddTasks,
 }: Props) {
   const chartRef = useRef<HTMLDivElement>(null)
   const [chartWidth, setChartWidth] = useState(0)
@@ -267,9 +270,25 @@ export function GanttChart({
   }, [drag, rows, onCreateDependency])
 
   if (!minDate || rows.length === 0) {
+    const total = tasks.length
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-        Add start/due dates to tasks to see the Gantt chart.
+      <div className="flex flex-col items-center justify-center py-16 px-4 text-center border border-dashed rounded-lg">
+        <BarChart3 className="w-10 h-10 text-muted-foreground/30 mb-3" />
+        <p className="text-sm font-medium">No schedule to show yet</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+          The Gantt chart plots tasks that have <strong>start and due dates</strong>.
+          {total > 0
+            ? ` You have ${total} task${total === 1 ? '' : 's'} — add dates to them in the WBS tab to see them here.`
+            : ' Create tasks with dates in the WBS tab to get started.'}
+        </p>
+        {onAddTasks && (
+          <button
+            onClick={onAddTasks}
+            className="mt-4 px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground font-medium"
+          >
+            {total > 0 ? 'Add dates in WBS' : 'Add tasks with dates'}
+          </button>
+        )}
       </div>
     )
   }

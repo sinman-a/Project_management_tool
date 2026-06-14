@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Users, Pencil, Plus, Trash2, LayoutList, LayoutGrid, MapPin, Zap, Calendar, Activity, AlertTriangle, Upload } from 'lucide-react'
-import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from '@/hooks/useResources'
+import { useNavigate } from 'react-router-dom'
+import { useResources, useCreateResource, useUpdateResource, useDeleteResource, useResourceAllocationBreakdown } from '@/hooks/useResources'
 import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { useOrgSettings } from '@/hooks/useOrg'
 import { useCapacityHeatmap } from '@/hooks/useCapacity'
@@ -55,6 +56,7 @@ export function Resources() {
   const [view, setView] = useState<'cards' | 'table' | 'capacity'>('cards')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [allocationFor, setAllocationFor] = useState<Resource | null>(null)
 
   const isAdmin = user?.role === 'admin'
   const enableArchetype = org?.settings?.enableArchetype ?? false
@@ -196,6 +198,7 @@ export function Resources() {
           enableMotto={enableMotto}
           onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
           onDelete={(id) => setConfirmDeleteId(id)}
+          onShowAllocation={setAllocationFor}
         />
       ) : (
         <>
@@ -208,6 +211,7 @@ export function Resources() {
               enableMotto={enableMotto}
               onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
               onDelete={(id) => setConfirmDeleteId(id)}
+              onShowAllocation={setAllocationFor}
             />
           )}
           {equipment.length > 0 && (
@@ -219,18 +223,61 @@ export function Resources() {
               enableMotto={false}
               onEdit={(r) => { setEditTarget(r); setShowForm(false) }}
               onDelete={(id) => setConfirmDeleteId(id)}
+              onShowAllocation={setAllocationFor}
             />
           )}
         </>
       )}
 
       {showImport && <EntityImportModal entityType="resource" onClose={() => setShowImport(false)} />}
+      {allocationFor && <AllocationModal resource={allocationFor} onClose={() => setAllocationFor(null)} />}
+    </div>
+  )
+}
+
+function AllocationModal({ resource, onClose }: { resource: Resource; onClose: () => void }) {
+  const navigate = useNavigate()
+  const { data, isLoading } = useResourceAllocationBreakdown(resource.id)
+  const totalHours = (data?.projects ?? []).reduce((s, p) => s + (p.allocatedHours ?? 0), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-background rounded-xl shadow-2xl w-full max-w-md p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-base">Allocation — {resource.name}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Close">✕</button>
+        </div>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+        ) : (data?.projects.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">No active task assignments for this resource.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {data!.projects.map((p) => (
+              <button
+                key={p.projectId}
+                onClick={() => { navigate(`/projects/${p.projectId}`); onClose() }}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md border hover:bg-accent transition-colors text-left"
+              >
+                <span className="text-sm font-medium truncate">{p.projectName}</span>
+                <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+                  {p.allocatedHours}h{totalHours > 0 ? ` · ${Math.round((p.allocatedHours / totalHours) * 100)}%` : ''}
+                </span>
+              </button>
+            ))}
+            <div className="flex justify-between pt-2 text-xs text-muted-foreground border-t mt-2">
+              <span>Total allocated</span>
+              <span className="tabular-nums">{totalHours}h across {data!.projects.length} project{data!.projects.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 function ResourceGroup({
-  title, resources, isAdmin, enableArchetype, enableMotto, onEdit, onDelete,
+  title, resources, isAdmin, enableArchetype, enableMotto, onEdit, onDelete, onShowAllocation,
 }: {
   title: string
   resources: Resource[]
@@ -239,6 +286,7 @@ function ResourceGroup({
   enableMotto: boolean
   onEdit: (r: Resource) => void
   onDelete: (id: string) => void
+  onShowAllocation: (r: Resource) => void
 }) {
   return (
     <div>
@@ -253,6 +301,7 @@ function ResourceGroup({
             enableMotto={enableMotto}
             onEdit={onEdit}
             onDelete={onDelete}
+            onShowAllocation={onShowAllocation}
           />
         ))}
       </div>
@@ -260,13 +309,14 @@ function ResourceGroup({
   )
 }
 
-function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEdit, onDelete }: {
+function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEdit, onDelete, onShowAllocation }: {
   resource: Resource
   isAdmin: boolean
   enableArchetype: boolean
   enableMotto: boolean
   onEdit: (r: Resource) => void
   onDelete: (id: string) => void
+  onShowAllocation: (r: Resource) => void
 }) {
   const isHuman = r.type === 'human'
   return (
@@ -326,9 +376,15 @@ function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEd
           <span>{r.capacityHoursPerWeek}h/week</span>
         </div>
         {isHuman && r.projectAllocation != null && (
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span>Allocation</span>
-            <span className="font-medium text-foreground">{r.projectAllocation}%</span>
+            <button
+              className="font-medium text-primary hover:underline"
+              onClick={() => onShowAllocation(r)}
+              title="View per-project breakdown"
+            >
+              {r.projectAllocation}% ▾
+            </button>
           </div>
         )}
         {isHuman && r.location && (
@@ -364,13 +420,14 @@ function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEd
   )
 }
 
-function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDelete }: {
+function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDelete, onShowAllocation }: {
   humans: Resource[]
   isAdmin: boolean
   enableArchetype: boolean
   enableMotto: boolean
   onEdit: (r: Resource) => void
   onDelete: (id: string) => void
+  onShowAllocation: (r: Resource) => void
 }) {
   if (humans.length === 0) {
     return (
@@ -421,7 +478,9 @@ function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDe
                   : <span className="text-muted-foreground">—</span>}
               </td>
               <td className="py-2.5 px-3 text-right">
-                {r.projectAllocation != null ? `${r.projectAllocation}%` : '—'}
+                {r.projectAllocation != null
+                  ? <button className="text-primary hover:underline font-medium" onClick={() => onShowAllocation(r)}>{r.projectAllocation}% ▾</button>
+                  : '—'}
               </td>
               <td className="py-2.5 px-3 text-right text-muted-foreground">
                 {formatCurrency(r.rate)}/h

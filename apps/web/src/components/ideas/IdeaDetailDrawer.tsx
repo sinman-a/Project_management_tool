@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { CommentThread } from '@/components/collaboration/CommentThread'
 import { IdeaStrategicValue } from '@/components/ideas/IdeaStrategicValue'
 import { useIdea, useApproveIdea, useRejectIdea, useConvertIdea, useUpdateIdea, useTransitionIdea } from '@/hooks/useIdeas'
+import { usePrograms } from '@/hooks/useProjects'
+import { useUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/stores/authStore'
 import { useDialog } from '@/hooks/useDialog'
 import { useNavigate } from 'react-router-dom'
@@ -25,7 +27,13 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
   const transitionIdea = useTransitionIdea()
 
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+  const [convertProgramId, setConvertProgramId] = useState('')
+  const [convertManagerId, setConvertManagerId] = useState('')
+  const [convertMethodology, setConvertMethodology] = useState('hybrid')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const { data: programs = [] } = usePrograms()
+  const { data: users = [] } = useUsers()
+  const managers = users.filter((u) => ['admin', 'program_manager', 'project_manager', 'pmo_lead'].includes(u.role))
 
   // Local RICE edit buffer (string inputs); synced when the idea loads.
   const [rice, setRice] = useState({ reach: '', impact: '', confidence: '', effort: '' })
@@ -328,21 +336,46 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
             className="bg-background rounded-lg shadow-2xl p-6 w-full max-w-sm space-y-4"
           >
             <h3 id="convert-modal-title" className="font-semibold">Convert to Project</h3>
-            <p className="text-sm text-muted-foreground">Creates a new project from this idea.</p>
-            <div className="space-y-2">
-              <label className="text-xs font-medium">Start Date *</label>
-              <input
-                type="date"
-                className="w-full text-sm border rounded px-2 py-1.5"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+            <p className="text-sm text-muted-foreground">Creates a new project from this idea and links it to a programme/portfolio.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1 col-span-2">
+                <label className="text-xs font-medium">Programme (sets portfolio)</label>
+                <select className="w-full text-sm border rounded px-2 py-1.5" value={convertProgramId} onChange={(e) => setConvertProgramId(e.target.value)}>
+                  <option value="">— Standalone (no programme) —</option>
+                  {programs.filter((p) => p.status !== 'closed').map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Project Manager</label>
+                <select className="w-full text-sm border rounded px-2 py-1.5" value={convertManagerId} onChange={(e) => setConvertManagerId(e.target.value)}>
+                  <option value="">— Me —</option>
+                  {managers.map((u) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Methodology</label>
+                <select className="w-full text-sm border rounded px-2 py-1.5" value={convertMethodology} onChange={(e) => setConvertMethodology(e.target.value)}>
+                  {['waterfall', 'agile', 'hybrid'].map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-xs font-medium">Start Date *</label>
+                <input type="date" className="w-full text-sm border rounded px-2 py-1.5" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
             </div>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowConvertModal(false)}>Cancel</Button>
               <Button size="sm" disabled={!startDate || convertIdea.isPending} onClick={() => {
                 convertIdea.mutate(
-                  { id: idea.id, startDate },
+                  {
+                    id: idea.id,
+                    startDate,
+                    programId: convertProgramId || undefined,
+                    managerId: convertManagerId || undefined,
+                    methodology: convertMethodology,
+                  },
                   {
                     onSuccess: (data) => {
                       setShowConvertModal(false)

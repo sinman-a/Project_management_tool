@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Upload } from 'lucide-react'
+import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Upload, Search, LayoutGrid, LayoutList } from 'lucide-react'
 import { ImportModal } from '@/components/settings/ImportModal'
 import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, usePrograms } from '@/hooks/useProjects'
@@ -33,10 +33,29 @@ export function Projects() {
   const [assignProgramId, setAssignProgramId] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [showEntityImport, setShowEntityImport] = useState(false)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [methodologyFilter, setMethodologyFilter] = useState('')
+  const [programFilter, setProgramFilter] = useState('')
+  const [sortBy, setSortBy] = useState<'name' | 'newest' | 'budget'>('name')
+  const [view, setView] = useState<'cards' | 'table'>('cards')
 
   const projects = showArchived
     ? allProjects
     : allProjects.filter((p) => !ARCHIVED_STATUSES.includes(p.status))
+
+  const programName = (pid?: string | null) => programs.find((p) => p.id === pid)?.name
+  const budgetOf = (p: Project) => (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
+  const visible = projects
+    .filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((p) => !statusFilter || p.status === statusFilter)
+    .filter((p) => !methodologyFilter || p.methodology === methodologyFilter)
+    .filter((p) => !programFilter || (programFilter === 'none' ? !p.programId : p.programId === programFilter))
+    .sort((a, b) =>
+      sortBy === 'name' ? a.name.localeCompare(b.name)
+        : sortBy === 'budget' ? budgetOf(b) - budgetOf(a)
+        : (b.createdAt ?? '').localeCompare(a.createdAt ?? ''),
+    )
 
   function handleClose() {
     setShowForm(false)
@@ -219,8 +238,79 @@ export function Projects() {
           )}
         </div>
       ) : (
+        <>
+        {/* Filters + view toggle */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="input-field pl-8 w-full h-9"
+              placeholder="Search projects…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <select className="input-field h-9 w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            {['planning', 'active', 'on_hold', 'completed', 'cancelled'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          </select>
+          <select className="input-field h-9 w-auto" value={methodologyFilter} onChange={(e) => setMethodologyFilter(e.target.value)}>
+            <option value="">All methods</option>
+            {['waterfall', 'agile', 'hybrid'].map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select className="input-field h-9 w-auto" value={programFilter} onChange={(e) => setProgramFilter(e.target.value)}>
+            <option value="">All programs</option>
+            <option value="none">No program</option>
+            {programs.filter((p) => p.status !== 'closed').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <select className="input-field h-9 w-auto" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="name">Sort: Name</option>
+            <option value="newest">Sort: Newest</option>
+            <option value="budget">Sort: Budget</option>
+          </select>
+          <div className="flex border rounded-md p-0.5 bg-muted/30">
+            <button aria-label="Card view" onClick={() => setView('cards')} className={`p-1.5 rounded ${view === 'cards' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}><LayoutGrid className="w-4 h-4" /></button>
+            <button aria-label="Table view" onClick={() => setView('table')} className={`p-1.5 rounded ${view === 'table' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}><LayoutList className="w-4 h-4" /></button>
+          </div>
+        </div>
+
+        {visible.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground text-sm border rounded-lg">No projects match your filters.</div>
+        ) : view === 'table' ? (
+          <div className="border rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-left py-2 px-3">Project</th>
+                  <th className="text-left py-2 px-3">Status</th>
+                  <th className="text-left py-2 px-3">Method</th>
+                  <th className="text-left py-2 px-3">Program</th>
+                  <th className="text-left py-2 px-3">Timeline</th>
+                  <th className="text-right py-2 px-3">Budget</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((project) => (
+                  <tr key={project.id} className="border-t hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/projects/${project.id}`)}>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <RagDot status={project.ragStatus ?? 'green'} size="sm" />
+                        <span className="font-medium truncate max-w-[220px]">{project.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-3"><StatusBadge status={project.status} /></td>
+                    <td className="py-2 px-3 capitalize text-muted-foreground">{project.methodology}</td>
+                    <td className="py-2 px-3 text-muted-foreground truncate max-w-[140px]">{programName(project.programId) ?? '—'}</td>
+                    <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">{formatDate(project.startDate)}{project.endDate ? ` → ${formatDate(project.endDate)}` : ''}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(budgetOf(project))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {projects.map((project) => {
+          {visible.map((project) => {
             const isArchived = ARCHIVED_STATUSES.includes(project.status)
             const hasNoProgram = !project.programId && !programId
             return (
@@ -310,6 +400,8 @@ export function Projects() {
             )
           })}
         </div>
+        )}
+        </>
       )}
     </div>
 
