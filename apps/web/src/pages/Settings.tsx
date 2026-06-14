@@ -10,6 +10,7 @@ import { ImportSection } from '@/components/settings/ImportSection'
 import { SecurityCard } from '@/components/settings/SecurityCard'
 import { AuthAuditCard } from '@/components/settings/AuthAuditCard'
 import { NotificationPreferencesCard } from '@/components/settings/NotificationPreferencesCard'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 import { StrategicDriversCard } from '@/components/settings/StrategicDriversCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -385,9 +386,14 @@ export function Settings() {
       {isAdmin && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              <Star className="inline-block w-4 h-4 mr-2 text-primary" />
-              Strategic Themes
+            <CardTitle className="text-base flex items-center gap-2">
+              <span><Star className="inline-block w-4 h-4 mr-2 text-primary" />Strategic Themes</span>
+              <InfoTooltip content={
+                <div className="space-y-1.5">
+                  <p>Themes are strategic categories (e.g. “Growth”, “Compliance”, “Cost Reduction”) you tag ideas with.</p>
+                  <p>They let you filter the Ideas pipeline by theme and run a <b>balance report</b> — how much cost/effort each strategic theme is consuming across approved ideas.</p>
+                </div>
+              } />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

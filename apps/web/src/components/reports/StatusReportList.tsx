@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StatusReportCard } from './StatusReportCard'
 import { StatusReportForm } from './StatusReportForm'
@@ -58,9 +58,17 @@ export function StatusReportList({ projectId, programId }: Props) {
       )}
 
       {reports.length === 0 && !showForm && (
-        <div className="py-12 text-center text-muted-foreground text-sm border rounded-lg">
-          No status reports yet.
-          {canCreate && ' Click "New Report" to create one.'}
+        <div className="py-12 flex flex-col items-center text-center border rounded-lg">
+          <FileText className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium">No status reports yet</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+            Status reports capture a point-in-time snapshot of health (RAG), schedule, budget and scope to share with stakeholders.
+          </p>
+          {canCreate && (
+            <Button size="sm" className="mt-4 gap-1.5" onClick={() => { setEditing(null); setShowForm(true) }}>
+              <Plus className="w-3.5 h-3.5" /> Generate your first report
+            </Button>
+          )}
         </div>
       )}
 

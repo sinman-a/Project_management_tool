@@ -1,6 +1,7 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Pencil, Calendar, Users, CheckCircle2 } from 'lucide-react'
-import { useProject, useUpdateProject } from '@/hooks/useProjects'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Pencil, Calendar, Users, CheckCircle2, ChevronRight } from 'lucide-react'
+import { useProject, useUpdateProject, usePrograms } from '@/hooks/useProjects'
+import { usePortfolios } from '@/hooks/usePortfolios'
 import { useProjectBudget, useProjectBudgetHistory, useRecalculateBudget } from '@/hooks/useBudget'
 import { useTasks, useProjectSchedule, useProjectTaskDeps, useAddDependency } from '@/hooks/useTasks'
 import { useSprints } from '@/hooks/useSprints'
@@ -60,6 +61,8 @@ export function ProjectDetail() {
   const { data: taskDeps = [] } = useProjectTaskDeps(id)
   const addDependency = useAddDependency()
   const updateProject = useUpdateProject()
+  const { data: programs = [] } = usePrograms()
+  const { data: portfolios = [] } = usePortfolios()
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('wbs')
   const [depPopover, setDepPopover] = useState<{ dep: TaskDependency; x: number; y: number } | null>(null)
@@ -138,8 +141,32 @@ export function ProjectDetail() {
   const tabMap = Object.fromEntries(TABS.map((t) => [t.key, t])) as Record<Tab, typeof TABS[number]>
   const activeGroupIdx = Math.max(0, TAB_GROUPS.findIndex((g) => g.keys.includes(activeTab)))
 
+  const program = project.programId ? programs.find((p) => p.id === project.programId) : undefined
+  const portfolio = program?.portfolioId ? portfolios.find((pf) => pf.id === program.portfolioId) : undefined
+
   return (
     <div className="p-6 space-y-6 max-w-6xl">
+      {/* Breadcrumbs: Portfolio → Program → Project */}
+      <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap" aria-label="Breadcrumb">
+        {program ? (
+          <>
+            <Link to="/portfolios" className="hover:text-foreground">Portfolios</Link>
+            {portfolio && (
+              <>
+                <ChevronRight className="w-3 h-3" />
+                <Link to={`/portfolios/${portfolio.id}`} className="hover:text-foreground">{portfolio.name}</Link>
+              </>
+            )}
+            <ChevronRight className="w-3 h-3" />
+            <Link to={`/programs/${program.id}`} className="hover:text-foreground">{program.name}</Link>
+          </>
+        ) : (
+          <Link to="/projects" className="hover:text-foreground">Projects</Link>
+        )}
+        <ChevronRight className="w-3 h-3" />
+        <span className="text-foreground font-medium truncate max-w-[240px]">{project.name}</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-start gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

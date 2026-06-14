@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut, Bell, Lightbulb, Layers } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut, Bell, Lightbulb, Layers, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { api } from '@/lib/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -113,6 +114,20 @@ function NotificationBell() {
   )
 }
 
+function ThemeToggle() {
+  const { theme, toggle } = useThemeStore()
+  return (
+    <button
+      className="p-1.5 rounded-md hover:bg-accent transition-colors"
+      onClick={toggle}
+      aria-label="Toggle dark mode"
+      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+  )
+}
+
 export function TopNav() {
   const location = useLocation()
   const { user, setUser } = useAuthStore()
@@ -162,6 +177,7 @@ export function TopNav() {
             </span>
           )}
           <NotificationBell />
+          <ThemeToggle />
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign out" aria-label="Sign out">
             <LogOut className="w-4 h-4" />
           </Button>

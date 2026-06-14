@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   useStrategicDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver,
 } from '@/hooks/useStrategicDrivers'
+import { InfoTooltip } from '@/components/ui/InfoTooltip'
 
 export function StrategicDriversCard() {
   const { data: drivers = [] } = useStrategicDrivers()
@@ -33,9 +34,18 @@ export function StrategicDriversCard() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          <Target className="inline-block w-4 h-4 mr-2 text-primary" />
-          Strategic Drivers (P-score weights)
+        <CardTitle className="text-base flex items-center gap-2">
+          <span><Target className="inline-block w-4 h-4 mr-2 text-primary" />Strategic Drivers (P-score weights)</span>
+          <InfoTooltip content={
+            <div className="space-y-1.5">
+              <p className="font-mono text-foreground">P = (Σ wᵢ·Sᵢ) / √(C² + R²)</p>
+              <p><b>Sᵢ</b> — expert score (0–10) each idea gets per driver (set on the idea's Strategic Value panel).</p>
+              <p><b>wᵢ</b> — the driver weight you set here, normalized across active drivers.</p>
+              <p><b>C</b> — normalized cost (idea's Estimated Cost scaled 0–1 across the portfolio).</p>
+              <p><b>R</b> — normalized risk (idea's Risk score, 1–5).</p>
+              <p>Higher P = more strategic value per unit of cost &amp; risk. Used to rank ideas in Prioritization.</p>
+            </div>
+          } />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

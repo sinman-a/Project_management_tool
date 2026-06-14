@@ -42,9 +42,28 @@ export function PortfolioAnalytics() {
   }))
 
   const spentPct = data.totalBudget > 0 ? (data.totalSpent / data.totalBudget) * 100 : 0
+  const baselined = data.projects.filter((p) => p.spi != null).length
+  const total = data.projects.length
 
   return (
     <div className="space-y-5">
+      {baselined === 0 && (
+        <div className="border border-dashed rounded-lg p-4 bg-muted/30">
+          <p className="text-sm font-medium">Predictive metrics are still activating</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            SPI/CPI, schedule forecasts and the SPI×CPI scatter activate once a project has a <strong>locked baseline</strong> and
+            tasks with start/due dates. RAG, budget and ROI below already work.
+          </p>
+          <div className="mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Projects with a baseline</span><span>{baselined}/{total}</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full" style={{ width: `${total > 0 ? (baselined / total) * 100 : 0}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Summary tiles */}
       <div className="flex gap-3 flex-wrap">
         <MetricCard title="Active Projects" value={data.projects.length} />
