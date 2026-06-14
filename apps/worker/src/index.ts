@@ -40,6 +40,7 @@ import { strategicDriverRoutes } from './routes/strategicDrivers'
 import { assignmentRoutes, assignmentSubRoutes } from './routes/assignments'
 import { budgetVersionRoutes, budgetVersionSubRoutes } from './routes/budgetVersions'
 import { analyticsRoutes } from './routes/analytics'
+import { searchRoutes } from './routes/search'
 
 const app = new Hono<HonoContext>()
 
@@ -100,6 +101,7 @@ api.route('/projects', assignmentSubRoutes)
 api.route('/budget-versions', budgetVersionRoutes)
 api.route('/projects', budgetVersionSubRoutes)
 api.route('/analytics', analyticsRoutes)
+api.route('/search', searchRoutes)
 
 app.route('/api', api)
 
