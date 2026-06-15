@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { CheckCircle2, Clock, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -5,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useProjectTimeLogs, useApproveTimeLog, useDeleteTimeLog } from '@/hooks/useTimeLogs'
 import { useAuthStore } from '@/stores/authStore'
 import { formatCurrency } from '@/lib/utils'
+import { LogTimeModal } from '@/components/time/LogTimeModal'
 import type { TimeLog } from '@/types'
 
 function LogRow({ log, canApprove, canDelete }: { log: TimeLog; canApprove: boolean; canDelete: boolean }) {
@@ -83,6 +85,7 @@ export function TimeLogList({ projectId }: Props) {
   const { user } = useAuthStore()
   const { data: logs = [], isLoading } = useProjectTimeLogs(projectId)
   const canApprove = user?.role === 'admin' || user?.role === 'project_manager'
+  const [showLog, setShowLog] = useState(false)
 
   const pending = logs.filter((l) => !l.approvedAt)
   const approved = logs.filter((l) => l.approvedAt)
@@ -96,21 +99,36 @@ export function TimeLogList({ projectId }: Props) {
 
   if (logs.length === 0) {
     return (
-      <div className="py-14 text-center border rounded-lg space-y-4">
-        <Clock className="w-10 h-10 text-muted-foreground/30 mx-auto" />
-        <div>
-          <p className="text-sm font-medium text-foreground">No time logs yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Log hours via the weekly timesheet and they'll appear here for approval.</p>
+      <>
+        <div className="py-14 text-center border rounded-lg space-y-4">
+          <Clock className="w-10 h-10 text-muted-foreground/30 mx-auto" />
+          <div>
+            <p className="text-sm font-medium text-foreground">No time logs yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Log hours against a task in this project and they'll appear here for approval.</p>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <Button size="sm" onClick={() => setShowLog(true)}>
+              <Clock className="w-3.5 h-3.5 mr-1.5" /> Log Time
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
+              Open Timesheet
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
-          Open Timesheet
-        </Button>
-      </div>
+        {showLog && <LogTimeModal lockProjectId={projectId} onClose={() => setShowLog(false)} />}
+      </>
     )
   }
 
   return (
     <div className="space-y-4">
+      {/* Header action */}
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => setShowLog(true)}>
+          <Clock className="w-3.5 h-3.5 mr-1.5" /> Log Time
+        </Button>
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -185,6 +203,8 @@ export function TimeLogList({ projectId }: Props) {
           </div>
         </div>
       )}
+
+      {showLog && <LogTimeModal lockProjectId={projectId} onClose={() => setShowLog(false)} />}
     </div>
   )
 }

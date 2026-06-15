@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, Calendar, Search, X } from 'lucide-react'
+import { Clock, Calendar, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useAssignedTasks, useUpdateTask } from '@/hooks/useTasks'
-import { useCreateTimeLog } from '@/hooks/useTimeLogs'
-import { useMyResource } from '@/hooks/useResources'
 import { useAuthStore } from '@/stores/authStore'
 import { TaskDetailPanel } from '@/components/tasks/TaskDetailPanel'
+import { LogTimeModal } from '@/components/time/LogTimeModal'
 import type { AssignedTask } from '@/hooks/useTasks'
 import type { Task, TaskStatus } from '@/types'
 
@@ -76,54 +75,13 @@ function TaskCard({ task, onOpen, onDragStart, onLogTime }: {
   )
 }
 
-function QuickLogModal({ task, resourceId, onClose }: { task: AssignedTask; resourceId: string; onClose: () => void }) {
-  const create = useCreateTimeLog()
-  const [hours, setHours] = useState('1')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [desc, setDesc] = useState('')
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-background rounded-xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-semibold text-sm">Log time — {task.name}</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium">Hours</label>
-            <input type="number" min="0.25" step="0.25" className="input-field" value={hours} onChange={(e) => setHours(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium">Date</label>
-            <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-        </div>
-        <div>
-          <label className="text-xs font-medium">Note (optional)</label>
-          <input className="input-field" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What did you work on?" />
-        </div>
-        {create.isError && <p className="text-xs text-destructive">{(create.error as Error)?.message}</p>}
-        <div className="flex gap-2 justify-end">
-          <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button size="sm" disabled={!(parseFloat(hours) > 0) || create.isPending}
-            onClick={() => create.mutate(
-              { taskId: task.id, resourceId, logDate: date, hours: parseFloat(hours), description: desc.trim() || undefined },
-              { onSuccess: onClose },
-            )}>
-            {create.isPending ? 'Logging…' : 'Log time'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function MyWork() {
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
   const { data: tasks = [], isLoading } = useAssignedTasks()
-  const myResource = useMyResource(user?.id)
   const [selected, setSelected] = useState<AssignedTask | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [logFor, setLogFor] = useState<AssignedTask | null>(null)
+  const [showLog, setShowLog] = useState(false)
   const [projectFilter, setProjectFilter] = useState('')
   const [search, setSearch] = useState('')
   const updateTask = useUpdateTask()
@@ -148,9 +106,14 @@ export function MyWork() {
             {visible.length} active {visible.length === 1 ? 'task' : 'tasks'} assigned to you
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
-          <Clock className="w-4 h-4 mr-1.5" /> Timesheet
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setShowLog(true)}>
+            <Clock className="w-4 h-4 mr-1.5" /> Log Time
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
+            Timesheet
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -174,6 +137,10 @@ export function MyWork() {
           <div className="text-center py-24 text-muted-foreground">
             <p className="text-sm">No tasks assigned to you.</p>
             <p className="text-xs mt-1">Tasks your project manager assigns will appear here.</p>
+            <Button size="sm" className="mt-4" onClick={() => setShowLog(true)}>
+              <Clock className="w-4 h-4 mr-1.5" /> Log Time
+            </Button>
+            <p className="text-xs mt-2">You can log time against any project task.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -212,20 +179,13 @@ export function MyWork() {
       {selected && (
         <TaskDetailPanel task={selected as Task} projectId={selected.projectId} canEdit={canEditTasks} onClose={() => setSelected(null)} />
       )}
-      {logFor && myResource && (
-        <QuickLogModal task={logFor} resourceId={myResource.id} onClose={() => setLogFor(null)} />
+      {logFor && (
+        <LogTimeModal
+          presetTask={{ id: logFor.id, name: logFor.name, projectName: logFor.projectName }}
+          onClose={() => setLogFor(null)}
+        />
       )}
-      {logFor && !myResource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setLogFor(null)}>
-          <div className="bg-background rounded-xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Can't log time</h3>
-              <button onClick={() => setLogFor(null)}><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-sm text-muted-foreground">Your account isn't linked to a resource yet. Ask an admin to add you as a resource to log time.</p>
-          </div>
-        </div>
-      )}
+      {showLog && <LogTimeModal onClose={() => setShowLog(false)} />}
     </div>
   )
 }
