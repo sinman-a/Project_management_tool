@@ -39,6 +39,8 @@ export type ProjectWithBudget = Project & {
   burnRateCapex?: number
   burnRateOpex?: number
   lastSnapshotDate?: string
+  taskTotal?: number
+  taskDone?: number
 }
 
 export function usePortfolioSummary() {

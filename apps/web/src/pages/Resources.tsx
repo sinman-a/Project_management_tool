@@ -319,6 +319,8 @@ function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEd
   onShowAllocation: (r: Resource) => void
 }) {
   const isHuman = r.type === 'human'
+  const { data: alloc } = useResourceAllocationBreakdown(isHuman ? r.id : null)
+  const allocTotal = (alloc?.projects ?? []).reduce((s, p) => s + (p.allocatedHours ?? 0), 0)
   return (
     <Card className="hover:shadow-sm transition-shadow">
       <CardHeader className="pb-2">
@@ -387,6 +389,21 @@ function ResourceCard({ resource: r, isAdmin, enableArchetype, enableMotto, onEd
             </button>
           </div>
         )}
+        {isHuman && (alloc?.projects.length ?? 0) > 0 && (
+          <div className="border-t pt-1.5 mt-1 space-y-0.5">
+            {alloc!.projects.slice(0, 3).map((p) => (
+              <div key={p.projectId} className="flex justify-between text-xs">
+                <span className="truncate max-w-[60%]">{p.projectName}</span>
+                <span className="tabular-nums">{p.allocatedHours}h{allocTotal > 0 ? ` · ${Math.round((p.allocatedHours / allocTotal) * 100)}%` : ''}</span>
+              </div>
+            ))}
+            {alloc!.projects.length > 3 && (
+              <button className="text-[11px] text-primary hover:underline" onClick={() => onShowAllocation(r)}>
+                +{alloc!.projects.length - 3} more
+              </button>
+            )}
+          </div>
+        )}
         {isHuman && r.location && (
           <div className="flex items-center gap-1">
             <MapPin className="w-3 h-3 flex-shrink-0" />
@@ -429,6 +446,9 @@ function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDe
   onDelete: (id: string) => void
   onShowAllocation: (r: Resource) => void
 }) {
+  const [sortKey, setSortKey] = useState<'name' | 'role' | 'projectAllocation' | 'rate'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
   if (humans.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground text-sm border rounded-lg">
@@ -436,23 +456,39 @@ function TeamTable({ humans, isAdmin, enableArchetype, enableMotto, onEdit, onDe
       </div>
     )
   }
+
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const sorted = [...humans].sort((a, b) => {
+    let cmp = 0
+    if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+    else if (sortKey === 'role') cmp = (a.role ?? '').localeCompare(b.role ?? '')
+    else if (sortKey === 'projectAllocation') cmp = (a.projectAllocation ?? 0) - (b.projectAllocation ?? 0)
+    else cmp = (a.rate ?? 0) - (b.rate ?? 0)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+  const arrow = (key: typeof sortKey) => (sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '')
+  const sortable = 'cursor-pointer select-none hover:text-foreground'
+
   return (
     <div className="border rounded-lg overflow-x-auto">
       <table className="w-full text-sm min-w-[640px]">
         <thead className="bg-muted/30 text-xs text-muted-foreground font-medium">
           <tr>
-            <th className="text-left py-2 px-3">Name</th>
-            <th className="text-left py-2 px-3">Role</th>
+            <th className={`text-left py-2 px-3 ${sortable}`} onClick={() => toggleSort('name')}>Name{arrow('name')}</th>
+            <th className={`text-left py-2 px-3 ${sortable}`} onClick={() => toggleSort('role')}>Role{arrow('role')}</th>
             <th className="text-left py-2 px-3">Seniority</th>
-            <th className="text-right py-2 px-3">Allocation</th>
-            <th className="text-right py-2 px-3">Rate</th>
+            <th className={`text-right py-2 px-3 ${sortable}`} onClick={() => toggleSort('projectAllocation')}>Allocation{arrow('projectAllocation')}</th>
+            <th className={`text-right py-2 px-3 ${sortable}`} onClick={() => toggleSort('rate')}>Rate{arrow('rate')}</th>
             {enableArchetype && <th className="text-left py-2 px-3">Archetype</th>}
             {enableMotto && <th className="text-left py-2 px-3">Motto</th>}
             {isAdmin && <th className="py-2 px-3" />}
           </tr>
         </thead>
         <tbody>
-          {humans.map((r) => (
+          {sorted.map((r) => (
             <tr key={r.id} className="border-t hover:bg-muted/20 transition-colors">
               <td className="py-2.5 px-3">
                 <div className="flex items-center gap-2">

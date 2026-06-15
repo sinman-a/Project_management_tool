@@ -31,7 +31,9 @@ projectRoutes.get('/portfolio/summary', async (c) => {
       bs.committed_capex, bs.committed_opex,
       bs.eac_capex, bs.eac_opex,
       bs.burn_rate_capex, bs.burn_rate_opex,
-      bs.snapshot_date as last_snapshot_date
+      bs.snapshot_date as last_snapshot_date,
+      (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL) as task_total,
+      (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.deleted_at IS NULL AND t.status = 'done') as task_done
     FROM projects p
     LEFT JOIN budget_snapshots bs ON bs.id = (
       SELECT id FROM budget_snapshots

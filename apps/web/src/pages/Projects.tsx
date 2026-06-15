@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Upload, Search, LayoutGrid, LayoutList } from 'lucide-react'
+import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Upload, Search, LayoutGrid, LayoutList, AlertTriangle } from 'lucide-react'
 import { ImportModal } from '@/components/settings/ImportModal'
 import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, usePrograms } from '@/hooks/useProjects'
+import { usePortfolioSummary } from '@/hooks/useBudget'
 import { useAuthStore } from '@/stores/authStore'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { RagDot } from '@/components/layout/RagDot'
@@ -22,6 +23,8 @@ export function Projects() {
   const { canCreateProjects } = useAuthStore()
   const { data: allProjects = [], isLoading } = useProjects(programId)
   const { data: programs = [] } = usePrograms()
+  const { data: summary = [] } = usePortfolioSummary()
+  const counts = new Map(summary.map((s) => [s.id, { total: s.taskTotal ?? 0, done: s.taskDone ?? 0 }]))
   const createProject = useCreateProject()
   const updateProject = useUpdateProject()
   const deleteProject = useDeleteProject()
@@ -349,6 +352,29 @@ export function Projects() {
                     <DollarSign className="w-3 h-3" />
                     CAPEX {formatCurrency(project.budgetCapex)} · OPEX {formatCurrency(project.budgetOpex)}
                   </div>
+                  {(() => {
+                    const c = counts.get(project.id)
+                    const total = c?.total ?? 0
+                    const done = c?.done ?? 0
+                    if (project.status === 'active' && total === 0) {
+                      return (
+                        <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1">
+                          <AlertTriangle className="w-3 h-3 flex-shrink-0" /> Active project with no tasks
+                        </div>
+                      )
+                    }
+                    if (total === 0) return null
+                    return (
+                      <div>
+                        <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
+                          <span>Progress</span><span>{done}/{total}</span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500 rounded-full" style={{ width: `${(done / total) * 100}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })()}
                   {canCreateProjects() && (
                     <div className="flex items-center justify-end gap-1 pt-1 flex-wrap">
                       {hasNoProgram && programs.length > 0 && (
