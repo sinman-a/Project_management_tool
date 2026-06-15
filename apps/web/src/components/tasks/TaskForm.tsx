@@ -8,7 +8,8 @@ import { useProjects } from '@/hooks/useProjects'
 import type { Task } from '@/types'
 
 const schema = z.object({
-  name: z.string().min(1, 'Required'),
+  name: z.string().trim().min(3, 'At least 3 characters')
+    .refine((v) => !/^[[\]<>{}]/.test(v), 'Cannot start with a bracket/symbol'),
   description: z.string().optional(),
   type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone', 'bug']),
   status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']),

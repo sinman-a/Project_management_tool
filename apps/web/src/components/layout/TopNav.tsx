@@ -4,6 +4,7 @@ import { LayoutDashboard, FolderKanban, Users, FileText, Settings, LogOut, Bell,
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
+import { canAccessRoute } from '@/lib/permissions'
 import { api } from '@/lib/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,8 @@ import { useNotifications, useMarkAllNotificationsRead, useMarkNotificationRead 
 import { notificationMeta, notificationLink, relativeTime } from '@/lib/notificationMeta'
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/my-work', icon: LayoutDashboard, label: 'My Work' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/portfolios', icon: Layers, label: 'Portfolios' },
   { to: '/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/ideas', icon: Lightbulb, label: 'Ideas' },
@@ -163,22 +165,24 @@ export function TopNav() {
         </Link>
 
         <nav className="flex items-center gap-1 ml-1 overflow-x-auto no-scrollbar">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navItems.filter(({ to }) => !user || canAccessRoute(user.role, to)).map(({ to, icon: Icon, label }) => {
+            const active = location.pathname === to || location.pathname.startsWith(to + '/')
+            return (
             <Link
               key={to}
               to={to}
               title={label}
               className={cn(
-                'flex items-center gap-2 px-2.5 py-2 text-sm rounded-md transition-colors flex-shrink-0',
-                location.pathname === to
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+                'flex items-center gap-2 px-2.5 py-2 text-sm rounded-md transition-colors flex-shrink-0 border-b-2',
+                active
+                  ? 'text-primary font-semibold border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border-transparent',
               )}
             >
               <Icon className="w-4 h-4" />
               <span className="hidden lg:inline">{label}</span>
             </Link>
-          ))}
+          )})}
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0">

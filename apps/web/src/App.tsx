@@ -58,9 +58,21 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto">
-          <Suspense fallback={<Spinner />}>{children}</Suspense>
+          <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
         </main>
       </div>
+    </div>
+  )
+}
+
+function PageSkeleton() {
+  return (
+    <div className="p-6 space-y-4 animate-pulse">
+      <div className="h-7 w-48 bg-muted rounded" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded-lg" />)}
+      </div>
+      <div className="h-64 bg-muted rounded-lg" />
     </div>
   )
 }

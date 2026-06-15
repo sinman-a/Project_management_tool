@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import type { Project } from '@/types'
 
 const schema = z.object({
-  name: z.string().min(1, 'Required').max(200),
+  name: z.string().trim().min(3, 'At least 3 characters').max(200)
+    .refine((v) => !/^[[\]<>{}]/.test(v), 'Cannot start with a bracket/symbol'),
   description: z.string().max(500).optional(),
   programId: z.string().uuid().optional().or(z.literal('')),
   managerId: z.string().uuid({ message: 'Select a Project Manager' }),

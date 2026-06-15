@@ -10,7 +10,8 @@ import { notifyUser } from '../services/notificationService'
 
 const projectSchema = z.object({
   programId: z.string().uuid().optional(),
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(3, 'Name must be at least 3 characters').max(200)
+    .refine((v) => !/^[[\]<>{}]/.test(v), 'Name cannot start with a bracket/symbol'),
   description: z.string().optional(),
   methodology: z.enum(['waterfall', 'agile', 'hybrid']).default('hybrid'),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

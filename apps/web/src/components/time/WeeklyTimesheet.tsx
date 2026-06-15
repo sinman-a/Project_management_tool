@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Save, AlertCircle, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Save, AlertCircle, X, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useWeekTimeLogs, useCreateTimeLog, useDeleteTimeLog } from '@/hooks/useTimeLogs'
@@ -37,7 +37,10 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
   const [weekMonday, setWeekMonday] = useState<Date>(() => getMonday(new Date()))
   const weekStart = toDateStr(weekMonday)
 
+  const prevWeekStart = toDateStr(addDays(weekMonday, -7))
+
   const { data: existingLogs = [] } = useWeekTimeLogs(weekStart)
+  const { data: prevWeekLogs = [] } = useWeekTimeLogs(prevWeekStart)
   const createLog = useCreateTimeLog()
   const deleteLog = useDeleteTimeLog()
 
@@ -71,6 +74,25 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
     setCellEdits({})
     setSaveError(null)
     setWeekMonday((prev) => addDays(prev, direction * 7))
+  }
+
+  const copyLastWeek = () => {
+    setSaveError(null)
+    const taskIds = new Set(tasks.map((t) => t.id))
+    const edits: Record<string, string> = {}
+    for (const log of prevWeekLogs) {
+      if (!taskIds.has(log.taskId)) continue
+      // shift the log date forward by 7 days into the current week
+      const target = toDateStr(addDays(new Date(log.logDate + 'T00:00:00'), 7))
+      const key = `${log.taskId}_${target}`
+      if (existingMap[key]?.approvedAt) continue // don't overwrite approved cells
+      edits[key] = String(log.hours)
+    }
+    if (Object.keys(edits).length === 0) {
+      setSaveError('No hours logged last week for these tasks.')
+      return
+    }
+    setCellEdits((prev) => ({ ...prev, ...edits }))
   }
 
   const handleSave = async () => {
@@ -121,6 +143,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
     }, 0),
   )
 
+  const weekTotal = dayTotals.reduce((s, t) => s + t, 0)
   const isCurrentWeek = toDateStr(getMonday(new Date())) === weekStart
 
   return (
@@ -140,15 +163,27 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleWeekChange(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
+          <span className="ml-3 text-sm">
+            <span className="text-muted-foreground">Total this week:</span>{' '}
+            <span className={cn('font-semibold', weekTotal > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+              {weekTotal}h
+            </span>
+          </span>
         </div>
-        <Button
-          size="sm"
-          disabled={!hasPendingEdits || saving}
-          onClick={handleSave}
-        >
-          <Save className="w-3 h-3 mr-1" />
-          {saving ? 'Saving…' : 'Save Week'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={copyLastWeek} title="Copy last week's hours into this week">
+            <Copy className="w-3 h-3 mr-1" />
+            Copy last week
+          </Button>
+          <Button
+            size="sm"
+            disabled={!hasPendingEdits || saving}
+            onClick={handleSave}
+          >
+            <Save className="w-3 h-3 mr-1" />
+            {saving ? 'Saving…' : 'Save Week'}
+          </Button>
+        </div>
       </div>
 
       {saveError && (
@@ -191,15 +226,22 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
                 return sum + (isNaN(n) ? 0 : n)
               }, 0)
               const isPinned = pinnedTaskIds.includes(task.id)
+              const doneButLogging = (task.status === 'done' || task.status === 'cancelled') && rowTotal > 0
 
               return (
-                <tr key={task.id} className="border-b hover:bg-muted/20">
+                <tr key={task.id} className={cn('border-b hover:bg-muted/20', doneButLogging && 'bg-amber-50/60')}>
                   <td className="py-2 px-3">
                     <div className="flex items-start justify-between gap-1">
                       <div className="min-w-0">
                         <div className="font-medium truncate max-w-[180px]">{task.name}</div>
                         {task.projectName && (
                           <div className="text-xs text-muted-foreground truncate">{task.projectName}</div>
+                        )}
+                        {doneButLogging && (
+                          <div className="text-[11px] text-amber-700 flex items-center gap-1 mt-0.5">
+                            <AlertCircle className="w-3 h-3" />
+                            Logging time on a {task.status} task
+                          </div>
                         )}
                       </div>
                       {isPinned && (

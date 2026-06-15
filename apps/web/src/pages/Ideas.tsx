@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, LayoutList, Kanban, Trophy } from 'lucide-react'
+import { Plus, LayoutList, Kanban, Trophy, Lightbulb, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { IdeaCard } from '@/components/ideas/IdeaCard'
@@ -164,7 +164,28 @@ export function Ideas() {
       </div>
 
       {/* Content */}
-      {view === 'priority' ? (
+      {!isLoading && ideas.length === 0 && !statusFilter && !themeFilter ? (
+        <div className="flex flex-col items-center justify-center text-center py-16 border-2 border-dashed rounded-xl">
+          <Lightbulb className="w-12 h-12 text-amber-400 mb-4" />
+          <h3 className="text-lg font-semibold">No ideas yet</h3>
+          <p className="text-sm text-muted-foreground mt-1 max-w-md">
+            Capture opportunities and let them flow through the pipeline before they become projects.
+          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-4 flex-wrap justify-center">
+            {['Submit', 'Review', 'Prioritize', 'Convert to Project'].map((step, i, arr) => (
+              <span key={step} className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded-full bg-muted font-medium">{step}</span>
+                {i < arr.length - 1 && <ArrowRight className="w-3 h-3" />}
+              </span>
+            ))}
+          </div>
+          {canSubmit && (
+            <Button className="mt-6" onClick={() => setShowSubmitForm(true)}>
+              <Plus className="w-4 h-4 mr-1" /> Submit First Idea
+            </Button>
+          )}
+        </div>
+      ) : view === 'priority' ? (
         <PrioritizationView onOpenIdea={setSelectedIdeaId} />
       ) : isLoading ? (
         <div className="py-12 text-center text-muted-foreground text-sm">Loading ideas…</div>

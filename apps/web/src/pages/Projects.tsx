@@ -4,7 +4,9 @@ import { Plus, FolderKanban, Calendar, DollarSign, Archive, Trash2, Link2, Uploa
 import { ImportModal } from '@/components/settings/ImportModal'
 import { EntityImportModal } from '@/components/import/EntityImportModal'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, usePrograms } from '@/hooks/useProjects'
+import { useCreateTask } from '@/hooks/useTasks'
 import { usePortfolioSummary } from '@/hooks/useBudget'
+import { Sparkles } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { RagDot } from '@/components/layout/RagDot'
@@ -12,7 +14,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import type { Project } from '@/types'
+import type { Project, Task } from '@/types'
 
 const ARCHIVED_STATUSES = ['completed', 'cancelled']
 
@@ -26,8 +28,10 @@ export function Projects() {
   const { data: summary = [] } = usePortfolioSummary()
   const counts = new Map(summary.map((s) => [s.id, { total: s.taskTotal ?? 0, done: s.taskDone ?? 0 }]))
   const createProject = useCreateProject()
+  const createTask = useCreateTask()
   const updateProject = useUpdateProject()
   const deleteProject = useDeleteProject()
+  const [seeding, setSeeding] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<Project | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -63,6 +67,34 @@ export function Projects() {
   function handleClose() {
     setShowForm(false)
     setEditTarget(null)
+  }
+
+  async function createSampleProject() {
+    setSeeding(true)
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const project = await createProject.mutateAsync({
+        name: 'Sample Project — Website Revamp',
+        description: 'A starter project showing phases, tasks and progress. Safe to edit or delete.',
+        methodology: 'hybrid',
+        startDate: today,
+        budgetCapex: 50000,
+        budgetOpex: 20000,
+        expectedBenefit: 120000,
+      })
+      const sampleTasks: Array<Partial<Task> & { projectId: string }> = [
+        { projectId: project.id, name: 'Discovery & requirements', status: 'done', priority: 'high' },
+        { projectId: project.id, name: 'Design mockups', status: 'in_progress', priority: 'high' },
+        { projectId: project.id, name: 'Build homepage', status: 'todo', priority: 'medium' },
+        { projectId: project.id, name: 'QA & launch', status: 'backlog', priority: 'medium', type: 'milestone' },
+      ]
+      for (const t of sampleTasks) {
+        await createTask.mutateAsync(t)
+      }
+      navigate(`/projects/${project.id}`)
+    } finally {
+      setSeeding(false)
+    }
   }
 
   function handleArchive(project: Project) {
@@ -235,9 +267,20 @@ export function Projects() {
             {showArchived ? 'No projects found.' : 'No active projects.'}
           </p>
           {canCreateProjects() && !showArchived && (
-            <Button className="mt-4" onClick={() => setShowForm(true)}>
-              <Plus className="w-4 h-4 mr-2" /> Create your first project
-            </Button>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center">
+              <Button onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Create your first project
+              </Button>
+              <Button variant="outline" disabled={seeding} onClick={createSampleProject}>
+                <Sparkles className="w-4 h-4 mr-2" />
+                {seeding ? 'Creating…' : 'Create sample project'}
+              </Button>
+            </div>
+          )}
+          {canCreateProjects() && !showArchived && (
+            <p className="text-xs text-muted-foreground mt-3 max-w-sm">
+              Not sure where to start? The sample seeds a well-formed project with a few tasks you can explore or delete.
+            </p>
           )}
         </div>
       ) : (

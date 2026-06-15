@@ -31,6 +31,8 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
   const [convertManagerId, setConvertManagerId] = useState('')
   const [convertMethodology, setConvertMethodology] = useState('hybrid')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showRejectForm, setShowRejectForm] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
   const { data: programs = [] } = usePrograms()
   const { data: users = [] } = useUsers()
   const managers = users.filter((u) => ['admin', 'program_manager', 'project_manager', 'pmo_lead'].includes(u.role))
@@ -295,31 +297,62 @@ export function IdeaDetailDrawer({ ideaId, onClose }: Props) {
 
         {/* Footer actions */}
         {idea && !isFrozen && canDecide && (
-          <div className="border-t px-5 py-4 flex flex-wrap gap-2 items-center">
-            {idea.status !== 'approved' && idea.status !== 'rejected' && (
-              <>
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  disabled={approveIdea.isPending}
-                  onClick={() => approveIdea.mutate({ id: idea.id }, { onSuccess: onClose })}
-                >
-                  <CheckCircle className="w-3 h-3 mr-1" /> Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={rejectIdea.isPending}
-                  onClick={() => rejectIdea.mutate({ id: idea.id }, { onSuccess: onClose })}
-                >
-                  <XCircle className="w-3 h-3 mr-1" /> Reject
-                </Button>
-              </>
-            )}
-            {isApproved && (
-              <Button size="sm" variant="outline" onClick={() => setShowConvertModal(true)}>
-                <ArrowRight className="w-3 h-3 mr-1" /> Convert to Project
-              </Button>
+          <div className="border-t px-5 py-4 space-y-3">
+            {showRejectForm ? (
+              <div className="space-y-2">
+                <label className="text-xs font-medium">Reason for rejection (shared as decision notes)</label>
+                <textarea
+                  rows={3}
+                  autoFocus
+                  className="input-field resize-none text-sm"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Why is this idea being rejected? e.g. out of scope, low ROI, duplicate…"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => { setShowRejectForm(false); setRejectReason('') }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={!rejectReason.trim() || rejectIdea.isPending}
+                    onClick={() => rejectIdea.mutate(
+                      { id: idea.id, notes: rejectReason.trim() },
+                      { onSuccess: onClose },
+                    )}
+                  >
+                    {rejectIdea.isPending ? 'Rejecting…' : 'Confirm Reject'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 items-center">
+                {idea.status !== 'approved' && idea.status !== 'rejected' && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={approveIdea.isPending}
+                      onClick={() => approveIdea.mutate({ id: idea.id }, { onSuccess: onClose })}
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setShowRejectForm(true)}
+                    >
+                      <XCircle className="w-3 h-3 mr-1" /> Reject
+                    </Button>
+                  </>
+                )}
+                {isApproved && (
+                  <Button size="sm" variant="outline" onClick={() => setShowConvertModal(true)}>
+                    <ArrowRight className="w-3 h-3 mr-1" /> Convert to Project
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}

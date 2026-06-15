@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { usePrograms, useProjects } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
-import { NAV_ITEMS, canAccessRoute } from '@/lib/permissions'
+import { canAccessRoute } from '@/lib/permissions'
 import { RagDot } from './RagDot'
 import { Button } from '@/components/ui/button'
 import type { Program } from '@/types'
@@ -56,32 +56,16 @@ function ProgramNode({ program }: { program: Program }) {
   )
 }
 
-function NavLink({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const active = location.pathname === to || location.pathname.startsWith(to + '/')
-
-  return (
-    <button
-      className={cn(
-        'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md hover:bg-accent transition-colors text-left',
-        active && 'bg-accent font-medium',
-      )}
-      onClick={() => navigate(to)}
-    >
-      <Icon className="w-4 h-4 flex-shrink-0" />
-      <span className="truncate">{label}</span>
-    </button>
-  )
-}
-
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUiStore()
   const { data: programs = [] } = usePrograms()
   const user = useAuthStore((s) => s.user)
   const role = user?.role
-  const navItems = role ? NAV_ITEMS.filter((item) => canAccessRoute(role, item.to)) : []
   const showPortfolioTree = role ? canAccessRoute(role, '/projects') : false
+
+  // Top-level nav lives in the TopNav now; the sidebar is only the Portfolio tree.
+  // Hide it entirely for roles without project access (no empty rail).
+  if (!showPortfolioTree) return null
 
   if (sidebarCollapsed) {
     return (
@@ -97,32 +81,21 @@ export function Sidebar() {
     <aside className="w-60 border-r hidden lg:flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Navigation
+          Portfolio
         </span>
         <Button variant="ghost" size="icon" onClick={toggleSidebar} className="w-7 h-7">
           <PanelLeftClose className="w-4 h-4" />
         </Button>
       </div>
 
-      <div className="p-2 space-y-0.5 border-b">
-        {navItems.map((item) => (
-          <NavLink key={item.to} to={item.to} icon={item.icon} label={item.label} />
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {programs.map((program) => (
+          <ProgramNode key={program.id} program={program} />
         ))}
+        {programs.length === 0 && (
+          <p className="text-xs text-muted-foreground px-3 py-2">No programs yet.</p>
+        )}
       </div>
-
-      {showPortfolioTree && (
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
-            Portfolio
-          </p>
-          {programs.map((program) => (
-            <ProgramNode key={program.id} program={program} />
-          ))}
-          {programs.length === 0 && (
-            <p className="text-xs text-muted-foreground px-3 py-2">No programs yet.</p>
-          )}
-        </div>
-      )}
     </aside>
   )
 }

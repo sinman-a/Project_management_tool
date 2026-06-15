@@ -28,7 +28,8 @@ const taskSchema = z.object({
   projectId: z.string().uuid(),
   sprintId: z.string().uuid().optional(),
   parentTaskId: z.string().uuid().optional(),
-  name: z.string().min(1).max(300),
+  name: z.string().trim().min(3, 'Name must be at least 3 characters').max(300)
+    .refine((v) => !/^[[\]<>{}]/.test(v), 'Name cannot start with a bracket/symbol'),
   description: z.string().optional(),
   type: z.enum(['waterfall_phase', 'agile_story', 'agile_task', 'milestone', 'bug']).default('agile_task'),
   status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']).default('backlog'),
