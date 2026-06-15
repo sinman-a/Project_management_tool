@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, Calendar } from 'lucide-react'
+import { Clock, Calendar, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useAssignedTasks, useUpdateTask } from '@/hooks/useTasks'
+import { useCreateTimeLog } from '@/hooks/useTimeLogs'
+import { useMyResource } from '@/hooks/useResources'
 import { useAuthStore } from '@/stores/authStore'
 import { TaskDetailPanel } from '@/components/tasks/TaskDetailPanel'
 import type { AssignedTask } from '@/hooks/useTasks'
@@ -24,19 +26,19 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'review', label: 'Review' },
 ]
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'todo', label: 'To Do' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'done', label: 'Done' },
-]
+const STATUS_OPTIONS: TaskStatus[] = ['backlog', 'todo', 'in_progress', 'review', 'done']
 
-function TaskCard({ task, onOpen }: { task: AssignedTask; onOpen: () => void }) {
+function TaskCard({ task, onOpen, onDragStart, onLogTime }: {
+  task: AssignedTask
+  onOpen: () => void
+  onDragStart: () => void
+  onLogTime: () => void
+}) {
   const updateTask = useUpdateTask()
-
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
       className="border rounded-md bg-card p-3 space-y-2 hover:border-primary/50 transition-colors cursor-pointer"
       onClick={onOpen}
     >
@@ -51,15 +53,64 @@ function TaskCard({ task, onOpen }: { task: AssignedTask; onOpen: () => void }) 
             <Calendar className="w-3 h-3" /> {task.dueDate}
           </span>
         ) : <span />}
-        <select
-          className="text-xs border rounded px-1.5 py-0.5 bg-background"
-          value={task.status}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => updateTask.mutate({ id: task.id, status: e.target.value as TaskStatus })}
-          aria-label={`Change status of ${task.name}`}
-        >
-          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="text-muted-foreground hover:text-primary p-1"
+            title="Quick log time"
+            onClick={onLogTime}
+          >
+            <Clock className="w-3.5 h-3.5" />
+          </button>
+          {/* status select = touch-friendly fallback for drag-and-drop */}
+          <select
+            className="text-xs border rounded px-1.5 py-0.5"
+            value={task.status}
+            onChange={(e) => updateTask.mutate({ id: task.id, status: e.target.value as TaskStatus })}
+            aria-label={`Change status of ${task.name}`}
+          >
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          </select>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function QuickLogModal({ task, resourceId, onClose }: { task: AssignedTask; resourceId: string; onClose: () => void }) {
+  const create = useCreateTimeLog()
+  const [hours, setHours] = useState('1')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [desc, setDesc] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-background rounded-xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold text-sm">Log time — {task.name}</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium">Hours</label>
+            <input type="number" min="0.25" step="0.25" className="input-field" value={hours} onChange={(e) => setHours(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Date</label>
+            <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium">Note (optional)</label>
+          <input className="input-field" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What did you work on?" />
+        </div>
+        {create.isError && <p className="text-xs text-destructive">{(create.error as Error)?.message}</p>}
+        <div className="flex gap-2 justify-end">
+          <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button size="sm" disabled={!(parseFloat(hours) > 0) || create.isPending}
+            onClick={() => create.mutate(
+              { taskId: task.id, resourceId, logDate: date, hours: parseFloat(hours), description: desc.trim() || undefined },
+              { onSuccess: onClose },
+            )}>
+            {create.isPending ? 'Logging…' : 'Log time'}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -67,23 +118,51 @@ function TaskCard({ task, onOpen }: { task: AssignedTask; onOpen: () => void }) 
 
 export function MyWork() {
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
   const { data: tasks = [], isLoading } = useAssignedTasks()
+  const myResource = useMyResource(user?.id)
   const [selected, setSelected] = useState<AssignedTask | null>(null)
-  const canEditTasks = useAuthStore((s) =>
-    s.hasRole(['admin', 'program_manager', 'pmo_lead', 'project_manager']))
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [logFor, setLogFor] = useState<AssignedTask | null>(null)
+  const [projectFilter, setProjectFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const updateTask = useUpdateTask()
+  const canEditTasks = useAuthStore((s) => s.hasRole(['admin', 'program_manager', 'pmo_lead', 'project_manager']))
+
+  const projects = Array.from(new Map(tasks.map((t) => [t.projectId, t.projectName])).entries())
+  const visible = tasks
+    .filter((t) => !projectFilter || t.projectId === projectFilter)
+    .filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase()))
+
+  function dropTo(status: TaskStatus) {
+    if (dragId) updateTask.mutate({ id: dragId, status })
+    setDragId(null)
+  }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b">
+      <div className="flex items-center justify-between px-6 py-4 border-b gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold">My Work</h1>
           <p className="text-sm text-muted-foreground">
-            {tasks.length} active {tasks.length === 1 ? 'task' : 'tasks'} assigned to you
+            {visible.length} active {visible.length === 1 ? 'task' : 'tasks'} assigned to you
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => navigate('/timesheet')}>
-          <Clock className="w-4 h-4 mr-1.5" /> Log time
+          <Clock className="w-4 h-4 mr-1.5" /> Timesheet
         </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b">
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input className="input-field pl-8 h-9" placeholder="Search my tasks…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className="input-field h-9 w-auto" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+          <option value="">All projects</option>
+          {projects.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
       </div>
 
       <div className="flex-1 overflow-auto p-6">
@@ -99,22 +178,29 @@ export function MyWork() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {COLUMNS.map((col) => {
-              const colTasks = tasks.filter((t) => t.status === col.status)
+              const colTasks = visible.filter((t) => t.status === col.status)
               return (
-                <div key={col.status} className="space-y-2">
+                <div
+                  key={col.status}
+                  className="space-y-2 rounded-lg"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => dropTo(col.status)}
+                >
                   <div className="flex items-center justify-between px-1">
-                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {col.label}
-                    </h2>
+                    <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{col.label}</h2>
                     <span className="text-xs text-muted-foreground">{colTasks.length}</span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-h-[80px]">
                     {colTasks.map((t) => (
-                      <TaskCard key={t.id} task={t} onOpen={() => setSelected(t)} />
+                      <TaskCard
+                        key={t.id}
+                        task={t}
+                        onOpen={() => setSelected(t)}
+                        onDragStart={() => setDragId(t.id)}
+                        onLogTime={() => setLogFor(t)}
+                      />
                     ))}
-                    {colTasks.length === 0 && (
-                      <p className="text-xs text-muted-foreground/60 px-1 py-3">No tasks</p>
-                    )}
+                    {colTasks.length === 0 && <p className="text-xs text-muted-foreground/60 px-1 py-3">Drop here</p>}
                   </div>
                 </div>
               )
@@ -124,12 +210,21 @@ export function MyWork() {
       </div>
 
       {selected && (
-        <TaskDetailPanel
-          task={selected as Task}
-          projectId={selected.projectId}
-          canEdit={canEditTasks}
-          onClose={() => setSelected(null)}
-        />
+        <TaskDetailPanel task={selected as Task} projectId={selected.projectId} canEdit={canEditTasks} onClose={() => setSelected(null)} />
+      )}
+      {logFor && myResource && (
+        <QuickLogModal task={logFor} resourceId={myResource.id} onClose={() => setLogFor(null)} />
+      )}
+      {logFor && !myResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setLogFor(null)}>
+          <div className="bg-background rounded-xl shadow-2xl p-5 w-full max-w-sm space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Can't log time</h3>
+              <button onClick={() => setLogFor(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">Your account isn't linked to a resource yet. Ask an admin to add you as a resource to log time.</p>
+          </div>
+        </div>
       )}
     </div>
   )
