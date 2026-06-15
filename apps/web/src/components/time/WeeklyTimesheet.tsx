@@ -157,7 +157,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
           <div className="text-sm font-medium min-w-[180px] text-center">
             {days[0]} — {days[6]}
             {isCurrentWeek && (
-              <span className="ml-2 text-xs text-indigo-600 font-normal">Current week</span>
+              <span className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 font-normal">Current week</span>
             )}
           </div>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleWeekChange(1)}>
@@ -229,7 +229,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
               const doneButLogging = (task.status === 'done' || task.status === 'cancelled') && rowTotal > 0
 
               return (
-                <tr key={task.id} className={cn('border-b hover:bg-muted/20', doneButLogging && 'bg-amber-50/60')}>
+                <tr key={task.id} className={cn('border-b hover:bg-muted/20', doneButLogging && 'bg-amber-50/60 dark:bg-amber-500/10')}>
                   <td className="py-2 px-3">
                     <div className="flex items-start justify-between gap-1">
                       <div className="min-w-0">
@@ -238,7 +238,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
                           <div className="text-xs text-muted-foreground truncate">{task.projectName}</div>
                         )}
                         {doneButLogging && (
-                          <div className="text-[11px] text-amber-700 flex items-center gap-1 mt-0.5">
+                          <div className="text-[11px] text-amber-700 dark:text-amber-300 flex items-center gap-1 mt-0.5">
                             <AlertCircle className="w-3 h-3" />
                             Logging time on a {task.status} task
                           </div>
@@ -264,7 +264,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
                     return (
                       <td key={date} className={cn('py-1 px-1 text-center', i >= 5 && 'bg-muted/10')}>
                         {isApproved ? (
-                          <div className="h-8 flex items-center justify-center text-xs text-green-700 font-medium bg-green-50 rounded">
+                          <div className="h-8 flex items-center justify-center text-xs text-green-700 dark:text-green-300 font-medium bg-green-50 dark:bg-green-500/15 rounded">
                             {existing!.hours}h ✓
                           </div>
                         ) : (
@@ -278,7 +278,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
                             onChange={(e) => handleCell(task.id, date, e.target.value)}
                             className={cn(
                               'w-full h-8 text-center text-xs border rounded focus:outline-none focus:ring-1 focus:ring-ring',
-                              val && parseFloat(val) > 0 ? 'bg-amber-50 border-amber-200' : 'bg-background',
+                              val && parseFloat(val) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-500/15 dark:border-amber-500/30' : 'bg-background',
                             )}
                           />
                         )}
@@ -296,7 +296,7 @@ export function WeeklyTimesheet({ tasks, pinnedTaskIds, onRemoveTask, resource }
             <tr className="bg-muted/30 text-xs font-medium">
               <td className="py-2 px-3">Daily Total</td>
               {dayTotals.map((total, i) => (
-                <td key={i} className={cn('py-2 px-2 text-center', total > 8 && 'text-amber-600')}>
+                <td key={i} className={cn('py-2 px-2 text-center', total > 8 && 'text-amber-600 dark:text-amber-400')}>
                   {total > 0 ? `${total}h` : '—'}
                 </td>
               ))}
