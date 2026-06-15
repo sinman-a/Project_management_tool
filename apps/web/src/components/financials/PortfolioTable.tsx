@@ -4,25 +4,7 @@ import { formatCurrency, formatPercent } from '@/lib/utils'
 import { RagDot } from '@/components/layout/RagDot'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { ProjectWithBudget } from '@/hooks/useBudget'
-import type { RagStatus } from '@/types'
-
-function computeRag(p: ProjectWithBudget): RagStatus {
-  const budget = (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
-  if (budget <= 0) return 'green'
-  const eac = (p.eacCapex ?? 0) + (p.eacOpex ?? 0)
-  const used = (p.spentCapex ?? 0) + (p.spentOpex ?? 0) + (p.committedCapex ?? 0) + (p.committedOpex ?? 0)
-  const usedPct = used / budget
-  if (eac > budget || usedPct >= 1) return 'red'
-  if (usedPct >= 0.8) return 'amber'
-  return 'green'
-}
-
-function cpiValue(p: ProjectWithBudget): number | null {
-  const budget = (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
-  const used = (p.spentCapex ?? 0) + (p.spentOpex ?? 0) + (p.committedCapex ?? 0) + (p.committedOpex ?? 0)
-  if (used <= 0 || budget <= 0) return null
-  return budget / used
-}
+import { computeRag, projectCpi as cpiValue } from '@/lib/rag'
 
 function roiValue(p: ProjectWithBudget): number | null {
   const budget = (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0)
@@ -117,11 +99,14 @@ export function PortfolioTable({ projects }: Props) {
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   {cpi != null ? (
-                    <span className={cn(
-                      'font-medium',
-                      cpi < 0.85 ? 'text-red-600' : cpi < 1.0 ? 'text-amber-600' : 'text-green-600',
-                    )}>
-                      {cpi.toFixed(2)}
+                    <span
+                      className={cn(
+                        'font-medium',
+                        cpi < 0.85 ? 'text-red-600' : cpi < 1.0 ? 'text-amber-600' : 'text-green-600',
+                      )}
+                      title="Budget ÷ (spent + committed)"
+                    >
+                      {cpi > 2 ? '>2.0' : cpi.toFixed(2)}
                     </span>
                   ) : '—'}
                 </td>

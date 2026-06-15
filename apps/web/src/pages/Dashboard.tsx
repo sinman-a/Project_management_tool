@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { usePortfolioSummary } from '@/hooks/useBudget'
 import { useProjectTimeLogs } from '@/hooks/useTimeLogs'
+import { useAssignedTasks } from '@/hooks/useTasks'
 import { PortfolioTable } from '@/components/financials/PortfolioTable'
 import { ResourceHeatmap } from '@/components/resources/ResourceHeatmap'
 import { BudgetWidget } from '@/components/financials/BudgetWidget'
@@ -9,7 +10,7 @@ import { RagDot } from '@/components/layout/RagDot'
 import { useUiStore } from '@/stores/uiStore'
 import { useProject } from '@/hooks/useProjects'
 import { useProjectBudget } from '@/hooks/useBudget'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import { Clock, FolderOpen, FolderKanban, Layers, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -141,6 +142,44 @@ function KpiRow() {
   )
 }
 
+function MyTasksWidget() {
+  const navigate = useNavigate()
+  const { data: tasks = [] } = useAssignedTasks()
+  const withDue = tasks
+    .filter((t) => t.dueDate)
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    .slice(0, 5)
+  if (withDue.length === 0) return null
+  const today = new Date().toISOString().slice(0, 10)
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> My tasks — nearest deadlines</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {withDue.map((t) => {
+          const overdue = (t.dueDate ?? '') < today
+          const isToday = t.dueDate === today
+          return (
+            <button
+              key={t.id}
+              onClick={() => navigate(`/projects/${t.projectId}`)}
+              className="w-full flex items-center justify-between gap-2 text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors text-left"
+            >
+              <span className="truncate">{t.name} <span className="text-xs text-muted-foreground">· {t.projectName}</span></span>
+              <span className={cn('text-xs whitespace-nowrap', overdue ? 'text-red-600 font-medium' : isToday ? 'text-amber-600 font-medium' : 'text-muted-foreground')}>
+                {overdue ? 'overdue ' : ''}{t.dueDate}
+              </span>
+            </button>
+          )
+        })}
+        <button onClick={() => navigate('/my-work')} className="text-xs text-primary hover:underline pt-1">View all my work →</button>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function Dashboard() {
   const navigate = useNavigate()
   const { dashboardView, setDashboardView } = useUiStore()
@@ -164,7 +203,9 @@ export function Dashboard() {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-6 space-y-4">
+          <MyTasksWidget />
+
           {isLoading && (
             <div className="space-y-2 animate-pulse">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-muted rounded" />)}

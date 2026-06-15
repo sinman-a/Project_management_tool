@@ -1,24 +1,28 @@
-import { usePrograms } from '@/hooks/useProjects'
+import { usePortfolioSummary } from '@/hooks/useBudget'
+import { computeRag } from '@/lib/rag'
 import { formatCurrency } from '@/lib/utils'
-import type { RagStatus } from '@/types'
 
-function countByStatus(programs: { ragStatus?: RagStatus }[], status: RagStatus) {
-  return programs.filter((p) => p.ragStatus === status).length
-}
+const ACTIVE = new Set(['planning', 'active', 'on_hold'])
 
 export function HealthBar() {
-  const { data: programs = [] } = usePrograms()
+  const { data: projects = [] } = usePortfolioSummary()
 
-  const green = countByStatus(programs, 'green')
-  const amber = countByStatus(programs, 'amber')
-  const red = countByStatus(programs, 'red')
+  // Count real RAG across active projects (budget/EAC-based), not programs.
+  const active = projects.filter((p) => ACTIVE.has(p.status))
+  let green = 0, amber = 0, red = 0
+  for (const p of active) {
+    const rag = computeRag(p)
+    if (rag === 'red') red++
+    else if (rag === 'amber') amber++
+    else green++
+  }
 
-  const totalBudget = programs.reduce((s, p) => s + (p as { budgetCapex?: number; budgetOpex?: number }).budgetCapex! + (p as { budgetCapex?: number; budgetOpex?: number }).budgetOpex!, 0)
+  const totalBudget = projects.reduce((s, p) => s + (p.budgetCapex ?? 0) + (p.budgetOpex ?? 0), 0)
 
   return (
-    <div className="flex items-center gap-6 px-6 py-2 bg-muted/50 border-b text-sm">
-      <span className="font-semibold text-muted-foreground">Portfolio Health:</span>
-      <div className="flex items-center gap-3">
+    <div className="flex items-center gap-6 px-6 py-2 bg-muted/50 border-b text-sm overflow-x-auto no-scrollbar">
+      <span className="font-semibold text-muted-foreground whitespace-nowrap">Portfolio Health:</span>
+      <div className="flex items-center gap-3 whitespace-nowrap">
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
           {green} On Track
@@ -32,11 +36,8 @@ export function HealthBar() {
           {red} Critical
         </span>
       </div>
-      <span className="ml-auto text-muted-foreground">
+      <span className="ml-auto text-muted-foreground whitespace-nowrap">
         Total Budget: <span className="font-medium text-foreground">{formatCurrency(totalBudget)}</span>
-      </span>
-      <span className="text-xs text-muted-foreground">
-        As of {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
   )
